@@ -1,0 +1,67 @@
+﻿### health
+GET http://127.0.0.1:8000/
+
+### register
+POST http://127.0.0.1:8000/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "demo_user",
+  "email": "demo@example.com",
+  "password": "12345678"
+}
+
+### login
+POST http://127.0.0.1:8000/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "demo_user",
+  "password": "12345678"
+}
+
+### profile
+GET http://127.0.0.1:8000/api/auth/profile
+Authorization: Bearer demo-access-token:demo_user
+
+### change password
+POST http://127.0.0.1:8000/api/auth/change-password
+Content-Type: application/json
+Authorization: Bearer demo-access-token:demo_user
+
+{
+  "username": "demo_user",
+  "old_password": "12345678",
+  "new_password": "87654321",
+  "confirm_password": "87654321"
+}
+
+### list documents
+GET http://127.0.0.1:8000/api/vector-store/documents
+
+### chat
+POST http://127.0.0.1:8000/api/chat/completion
+Content-Type: application/json
+
+{
+  "question": "请介绍一下这个项目",
+  "collection_name": "default",
+  "top_k": 3,
+  "history": []
+}
+
+### profile (use token from register/login response)
+GET http://127.0.0.1:8000/api/auth/profile
+Authorization: Bearer {{access_token}}
+
+### change password (use token from register/login response)
+POST http://127.0.0.1:8000/api/auth/change-password
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "username": "demo_user",
+  "old_password": "12345678",
+  "new_password": "87654321",
+  "confirm_password": "87654321"
+}

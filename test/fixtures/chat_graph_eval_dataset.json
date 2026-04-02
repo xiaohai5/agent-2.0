@@ -1,0 +1,274 @@
+[
+  {
+    "id": "rec_hangzhou_parents",
+    "question": "杭州适合带父母轻松游玩的景点推荐两个",
+    "expected_context": {
+      "carry_context": false,
+      "inherit_mode": "none",
+      "inherited_contains": []
+    },
+    "expected_route": {
+      "route": "other",
+      "subtask_routes": [
+        "other"
+      ],
+      "primary_intent": "recommendation"
+    },
+    "reference_answer": "",
+    "reference_facts": [
+      "杭州"
+    ],
+    "answer_must_not_contain": []
+  },
+  {
+    "id": "other_westlake_season",
+    "question": "西湖适合什么季节去，为什么？",
+    "expected_context": {
+      "carry_context": false,
+      "inherit_mode": "none",
+      "inherited_contains": []
+    },
+    "expected_route": {
+      "route": "other",
+      "subtask_routes": [
+        "other"
+      ],
+      "primary_intent": "other"
+    },
+    "reference_answer": "",
+    "reference_facts": [
+      "西湖"
+    ],
+    "answer_must_not_contain": []
+  },
+  {
+    "id": "rag_refund_rule",
+    "question": "火车票退票规则一般怎么看？",
+    "expected_context": {
+      "carry_context": false,
+      "inherit_mode": "none",
+      "inherited_contains": []
+    },
+    "expected_route": {
+      "route": "rag",
+      "subtask_routes": [
+        "rag"
+      ],
+      "primary_intent": "rag"
+    },
+    "reference_answer": "",
+    "reference_facts": [
+      "退票"
+    ],
+    "answer_must_not_contain": []
+  },
+  {
+    "id": "rag_change_rule",
+    "question": "高铁改签规则通常包含哪些要点？",
+    "expected_context": {
+      "carry_context": false,
+      "inherit_mode": "none",
+      "inherited_contains": []
+    },
+    "expected_route": {
+      "route": "rag",
+      "subtask_routes": [
+        "rag"
+      ],
+      "primary_intent": "rag"
+    },
+    "reference_answer": "",
+    "reference_facts": [
+      "改签"
+    ],
+    "answer_must_not_contain": []
+  },
+  {
+    "id": "other_chengdu_lodging",
+    "question": "第一次去成都旅游，住哪个区域更方便？",
+    "expected_context": {
+      "carry_context": false,
+      "inherit_mode": "none",
+      "inherited_contains": []
+    },
+    "expected_route": {
+      "route": "other",
+      "subtask_routes": [
+        "other"
+      ],
+      "primary_intent": "other"
+    },
+    "reference_answer": "",
+    "reference_facts": [
+      "成都"
+    ],
+    "answer_must_not_contain": []
+  },
+  {
+    "id": "ctx_hangzhou_near_westlake",
+    "question": "再推荐一个离西湖近一点、适合晚上散步的地方",
+    "history_summary": {
+      "effective_question": "杭州适合带父母轻松游玩的景点推荐两个",
+      "rewritten_question": "杭州适合带父母轻松游玩的景点推荐两个",
+      "detected_needs": [
+        "杭州景点推荐",
+        "适合父母",
+        "轻松游玩"
+      ],
+      "context_summary": "用户想在杭州找适合带父母轻松游玩的景点，重点关注舒适度和经典景点。",
+      "route": "other",
+      "primary_intent": "recommendation",
+      "final_answer": "可以优先考虑西湖和灵隐寺，这两个地方知名度高，也比较适合带父母慢慢逛。"
+    },
+    "expected_context": {
+      "carry_context": true,
+      "inherit_mode": "reference_only",
+      "inherited_contains": [
+        "西湖",
+        "杭州"
+      ]
+    },
+    "expected_route": {
+      "route": "other",
+      "subtask_routes": [
+        "other"
+      ],
+      "primary_intent": "recommendation"
+    },
+    "reference_answer": "",
+    "reference_facts": [
+      "西湖"
+    ],
+    "answer_must_not_contain": []
+  },
+  {
+    "id": "ctx_continue_food_budget",
+    "question": "继续，控制在人均100元以内",
+    "history_summary": {
+      "effective_question": "杭州西湖附近适合晚饭的餐厅推荐两个",
+      "rewritten_question": "杭州西湖附近适合晚饭的餐厅推荐两个",
+      "detected_needs": [
+        "杭州餐厅推荐",
+        "西湖附近",
+        "适合晚饭"
+      ],
+      "context_summary": "用户想找杭州西湖附近适合晚饭的餐厅，默认希望环境和位置都比较合适。",
+      "route": "other",
+      "primary_intent": "recommendation",
+      "final_answer": "如果在西湖附近吃晚饭，可以先看楼外楼或知味观这类知名选择，位置相对方便。"
+    },
+    "expected_context": {
+      "carry_context": true,
+      "inherit_mode": "task_continue",
+      "inherited_contains": [
+        "西湖",
+        "餐厅"
+      ]
+    },
+    "expected_route": {
+      "route": "other",
+      "subtask_routes": [
+        "other"
+      ],
+      "primary_intent": "other"
+    },
+    "reference_answer": "",
+    "reference_facts": [
+      "100"
+    ],
+    "answer_must_not_contain": []
+  },
+  {
+    "id": "ctx_suzhou_photo_followup",
+    "question": "那里附近还有什么适合拍照的地方？",
+    "history_summary": {
+      "effective_question": "苏州适合拍照的园林推荐两个",
+      "rewritten_question": "苏州适合拍照的园林推荐两个",
+      "detected_needs": [
+        "苏州园林推荐",
+        "适合拍照"
+      ],
+      "context_summary": "用户在找苏州适合拍照的园林类景点，偏好有古典园林氛围的地点。",
+      "route": "other",
+      "primary_intent": "recommendation",
+      "final_answer": "苏州可以先看拙政园和留园，这两处都很适合拍照，也比较有代表性。"
+    },
+    "expected_context": {
+      "carry_context": true,
+      "inherit_mode": "reference_only",
+      "inherited_contains": [
+        "苏州",
+        "拍照"
+      ]
+    },
+    "expected_route": {
+      "route": "other",
+      "subtask_routes": [
+        "other"
+      ],
+      "primary_intent": "recommendation"
+    },
+    "reference_answer": "",
+    "reference_facts": [
+      "拍照"
+    ],
+    "answer_must_not_contain": []
+  },
+  {
+    "id": "other_chongqing_budget",
+    "question": "去重庆玩两天，大概需要准备多少预算？",
+    "expected_context": {
+      "carry_context": false,
+      "inherit_mode": "none",
+      "inherited_contains": []
+    },
+    "expected_route": {
+      "route": "other",
+      "subtask_routes": [
+        "other"
+      ],
+      "primary_intent": "other"
+    },
+    "reference_answer": "",
+    "reference_facts": [
+      "预算"
+    ],
+    "answer_must_not_contain": []
+  },
+  {
+    "id": "ctx_rag_followup_departed_refund",
+    "question": "那如果已经开车了还能退票吗？",
+    "history_summary": {
+      "effective_question": "火车票退票规则一般怎么看？",
+      "rewritten_question": "火车票退票规则一般怎么看？",
+      "detected_needs": [
+        "退票规则",
+        "火车票"
+      ],
+      "context_summary": "用户在询问火车票退票规则，希望了解退票条件和注意事项。",
+      "route": "rag",
+      "primary_intent": "rag",
+      "final_answer": "火车票退票通常要看退票时间点、票种限制以及平台的具体规则说明。"
+    },
+    "expected_context": {
+      "carry_context": true,
+      "inherit_mode": "reference_only",
+      "inherited_contains": [
+        "退票",
+        "火车票"
+      ]
+    },
+    "expected_route": {
+      "route": "rag",
+      "subtask_routes": [
+        "rag"
+      ],
+      "primary_intent": "rag"
+    },
+    "reference_answer": "",
+    "reference_facts": [
+      "退票"
+    ],
+    "answer_must_not_contain": []
+  }
+]

@@ -1,0 +1,12 @@
+.env
+*.env
+__pycache__/
+*.py[cod]
+.idea/
+.vscode/
+.langgraph_api/
+chroma_db/
+md5.txt
+*.pckl
+*.pickle
+*.bin
