@@ -1,8 +1,35 @@
 # Agent 2.0
 
+<p align="center">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white">
+  <img alt="Vue" src="https://img.shields.io/badge/Vue_3-Frontend-42B883?logo=vuedotjs&logoColor=white">
+  <img alt="LangGraph" src="https://img.shields.io/badge/LangGraph-Agent_Workflow-5B21B6">
+  <img alt="GraphRAG" src="https://img.shields.io/badge/GraphRAG-Knowledge_Graph-F97316">
+</p>
+
 Agent 2.0 是一个面向旅行与生活服务场景的智能助手项目，包含 FastAPI 后端、Vue 3 前端、MySQL 持久化、Chroma 向量库、GraphRAG 文档处理、双 Agent 对话工作流以及移动端 Capacitor 集成。
 
 项目后端负责用户认证、文档上传与知识库检索、对话生成、用户长期记忆、反馈采集和 DPO 数据导出；前端提供账号管理、聊天、文档管理和移动端适配界面。
+
+## 目录
+
+- [系统架构](#系统架构)
+- [核心功能](#核心功能)
+- [项目亮点](#项目亮点)
+- [技术栈](#技术栈)
+- [项目结构](#项目结构)
+- [环境要求](#环境要求)
+- [快速开始](#快速开始)
+- [配置说明](#配置说明)
+- [后端启动](#后端启动)
+- [前端启动](#前端启动)
+- [Android 调试](#android-调试)
+- [API 概览](#api-概览)
+- [数据表](#数据表)
+- [测试与检查](#测试与检查)
+- [运行时目录与版本控制](#运行时目录与版本控制)
+- [常见问题](#常见问题)
 
 ## 系统架构
 
@@ -19,6 +46,14 @@ Agent 2.0 是一个面向旅行与生活服务场景的智能助手项目，包�
 - GraphRAG：文档上传后可生成语义块、实体、关系，并提供图谱摘要接口。
 - 反馈闭环：支持对 AI 回复点赞/点踩，并导出训练数据或 DPO 数据集。
 - 前端与移动端：Vue 3 + Vite Web 应用，配套 Capacitor Android 工程。
+
+## 项目亮点
+
+- 双 Agent 协同：将用户长期记忆维护与对话生成拆分为 `MemoryAgent` 和 `DialogAgent`，让对话上下文更稳定。
+- 技能自动路由：通过 `travel-life-service-auto-router` 自动选择旅行规划、车票服务、酒店餐饮、知识库问答或通用聊天。
+- 知识增强问答：结合文档解析、向量检索、BM25、重排与 GraphRAG 图谱摘要，提升复杂资料问答能力。
+- 前后端完整闭环：覆盖账号系统、聊天界面、文档管理、反馈采集、DPO 数据导出和移动端适配。
+- GitHub 友好展示：README 内置系统架构图、启动说明、接口概览和运行时目录说明，便于演示和交付。
 
 ## 技术栈
 
@@ -76,6 +111,56 @@ Agent 2.0 是一个面向旅行与生活服务场景的智能助手项目，包�
 - 可访问的 OpenAI 兼容 API
 - 如需本地重排模型，建议准备可用 GPU；没有 GPU 时需要调整 `project_config.py` 中的 rerank 设备配置
 - 如需 Android 打包，需要 Android Studio 与 JDK
+
+## 快速开始
+
+```bash
+git clone https://github.com/xiaohai5/agent-2.0.git
+cd agent-2.0
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+前端开发：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+默认访问地址：
+
+```text
+后端：http://127.0.0.1:8000
+前端：http://127.0.0.1:5173
+```
+
+## 配置说明
+
+项目默认从环境变量读取敏感配置。建议在本地创建 `.env` 或使用系统环境变量保存密钥，避免将真实密钥提交到 GitHub。
+
+常用环境变量示例：
+
+```env
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4o-mini
+EMBEDDING_MODEL=text-embedding-3-small
+ASYNC_DATABASE_URL=mysql+aiomysql://root:password@localhost:3306/agent?charset=utf8mb4
+AMAP_MCP_URL=https://mcp.amap.com/mcp?key=your-amap-key
+TICKET_MCP_COMMAND=npx
+LANGSMITH_API_KEY=
+LANGSMITH_PROJECT=agent-2.0
+```
+
+前端环境变量示例：
+
+```env
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
 
 ## 后端启动
 
