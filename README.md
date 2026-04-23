@@ -7,7 +7,7 @@ Agent 2.0 是一个面向旅行与生活服务场景的智能助手项目，包�
 ## 系统架构
 
 <p align="center">
-  <img src="docs/system-architecture.svg" alt="基于双 Agent 与 GraphRAG 的旅行生活服务对话系统架构图" width="100%">
+  <img src="docs/agent_architecture.png" alt="基于双 Agent 与 GraphRAG 的旅行生活服务对话系统架构图" width="100%">
 </p>
 
 ## 核心功能
