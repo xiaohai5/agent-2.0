@@ -1,7 +1,0 @@
-{
-  "$schema": "https://langgra.ph/schema.json",
-  "dependencies": ["."],
-  "graphs": {
-    "agent": "backend.app.graphs.chat_graph:graph"
-  }
-}

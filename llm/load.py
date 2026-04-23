@@ -5,11 +5,12 @@ import tempfile
 from pathlib import Path
 
 from langchain_core.documents import Document
+from project_config import SETTINGS
 
 try:
-    from . import config_data as config
+    import project_config as config
 except ImportError:
-    import config_data as config
+    import project_config as config
 
 """
 鏂囨。鍔犺浇妯″潡锛氬皢涓婁紶鏂囦欢杞崲涓?LangChain Document 鍒楄〃銆?
@@ -28,7 +29,7 @@ def _resolve_export_type():
             f"Original error: {exc}"
         ) from exc
 
-    export_type_name = os.getenv("DOCLING_EXPORT_TYPE", "markdown").strip().upper()
+    export_type_name = SETTINGS.docling_export_type.strip().upper()
     if hasattr(ExportType, export_type_name):
         return getattr(ExportType, export_type_name)
 

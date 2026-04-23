@@ -9,9 +9,9 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 try:
-    from .splitter_config import SplitterConfig
+    from project_config import SplitterConfig
 except ImportError:
-    from splitter_config import SplitterConfig
+    from project_config import SplitterConfig
 
 
 MARKDOWN_DOC_TYPES = {"markdown"}

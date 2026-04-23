@@ -8,9 +8,9 @@ from typing import Any
 from langchain_core.documents import Document
 
 try:
-    from . import config_data as config
+    import project_config as config
 except ImportError:
-    import config_data as config
+    import project_config as config
 
 
 class QueryReranker:

@@ -10,9 +10,9 @@ from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 
 try:
-    from . import config_data as config
+    import project_config as config
 except ImportError:
-    import config_data as config
+    import project_config as config
 
 try:
     from .chunking import chunk_documents
@@ -29,7 +29,7 @@ class KnowledgeBaseServce:
         self.vector_store = Chroma(
             collection_name=self.collection_name,
             embedding_function=OpenAIEmbeddings(model=config.embedding_model),
-            persist_directory="./chroma_db",
+            persist_directory=config.SETTINGS.chroma_persist_directory,
         )
 
     def ingest_documents(self, docs: list[Document]) -> str:

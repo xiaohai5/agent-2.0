@@ -1,1 +1,1 @@
-"""FastAPI application and graph modules."""
+"""FastAPI application modules."""

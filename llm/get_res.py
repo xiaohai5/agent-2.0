@@ -7,9 +7,9 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
 
 try:
-    from . import config_data as config
+    import project_config as config
 except ImportError:
-    import config_data as config
+    import project_config as config
 
 try:
     from .creat_retriver import creat_retriver
