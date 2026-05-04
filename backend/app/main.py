@@ -23,7 +23,6 @@ from backend.app.core.database import init_db
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # 初始化数据库表
     await init_db()
     yield
 
@@ -136,5 +135,5 @@ async def validation_exception_handler(_request: Request, exc: RequestValidation
 async def unhandled_exception_handler(_request: Request, _exc: Exception) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"code": 500, "message": "服务内部异常，请稍后重试", "data": None},
+        content={"code": 500, "message": "服务器内部错误，请稍后重试", "data": None},
     )

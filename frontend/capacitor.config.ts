@@ -6,7 +6,7 @@ const serverUrl = process.env.CAP_SERVER_URL;
 
 const config: CapacitorConfig = {
   appId: "com.agent2.mobile",
-  appName: "智能出行助手",
+  appName: "Agent 2.0",
   webDir: "dist",
   bundledWebRuntime: false,
   plugins: {

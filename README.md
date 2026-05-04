@@ -8,61 +8,27 @@
   <img alt="GraphRAG" src="https://img.shields.io/badge/GraphRAG-Knowledge_Graph-F97316">
 </p>
 
-Agent 2.0 是一个面向旅行与生活服务场景的智能助手项目，包含 FastAPI 后端、Vue 3 前端、MySQL 持久化、Chroma 向量库、GraphRAG 文档处理、双 Agent 对话工作流以及移动端 Capacitor 集成。
+Agent 2.0 是一个面向旅行生活服务与知识问答的智能助手项目。项目采用 FastAPI 后端、Vue 3 + Vite 前端、MySQL 数据库、Redis 短期记忆、Chroma 向量库，并集成 LangGraph、LangChain、GraphRAG、Docling 和 Capacitor Android。
 
-项目后端负责用户认证、文档上传与知识库检索、对话生成、用户长期记忆、反馈采集和 DPO 数据导出；前端提供账号管理、聊天、文档管理和移动端适配界面。
+## 功能概览
 
-## 目录
-
-- [系统架构](#系统架构)
-- [核心功能](#核心功能)
-- [项目亮点](#项目亮点)
-- [技术栈](#技术栈)
-- [项目结构](#项目结构)
-- [环境要求](#环境要求)
-- [快速开始](#快速开始)
-- [配置说明](#配置说明)
-- [后端启动](#后端启动)
-- [前端启动](#前端启动)
-- [Android 调试](#android-调试)
-- [API 概览](#api-概览)
-- [数据表](#数据表)
-- [测试与检查](#测试与检查)
-- [运行时目录与版本控制](#运行时目录与版本控制)
-- [常见问题](#常见问题)
-
-## 系统架构
-
-<p align="center">
-  <img src="docs/agent_architecture.png" alt="基于双 Agent 与 GraphRAG 的旅行生活服务对话系统架构图" width="100%">
-</p>
-
-## 核心功能
-
-- 用户系统：支持注册、登录、个人资料获取、修改密码，认证方式为 `Bearer Token`。
-- 智能对话：通过 `MemoryAgent + DialogAgent` 双 Agent 工作流生成回答，并将用户记忆持久化到 MySQL。
-- 旅行生活服务：内置 `travel-life-service-auto-router` 技能，可覆盖旅行规划、火车票服务、酒店餐饮推荐、知识问答和通用聊天。
-- RAG 知识库：支持上传文档，使用 Docling 切分解析、Embedding、Chroma 向量存储、BM25/向量混合召回和重排。
-- GraphRAG：文档上传后可生成语义块、实体、关系，并提供图谱摘要接口。
-- 反馈闭环：支持对 AI 回复点赞/点踩，并导出训练数据或 DPO 数据集。
-- 前端与移动端：Vue 3 + Vite Web 应用，配套 Capacitor Android 工程。
-
-## 项目亮点
-
-- 双 Agent 协同：将用户长期记忆维护与对话生成拆分为 `MemoryAgent` 和 `DialogAgent`，让对话上下文更稳定。
-- 技能自动路由：通过 `travel-life-service-auto-router` 自动选择旅行规划、车票服务、酒店餐饮、知识库问答或通用聊天。
-- 知识增强问答：结合文档解析、向量检索、BM25、重排与 GraphRAG 图谱摘要，提升复杂资料问答能力。
-- 前后端完整闭环：覆盖账号系统、聊天界面、文档管理、反馈采集、DPO 数据导出和移动端适配。
-- GitHub 友好展示：README 内置系统架构图、启动说明、接口概览和运行时目录说明，便于演示和交付。
+- 用户注册、登录、资料管理和密码修改。
+- `MemoryAgent + DialogAgent` 双 Agent 对话流程。
+- Redis 短期记忆和 Markdown 长期记忆。
+- 文档上传、解析、向量化、检索和知识库问答。
+- 旅行规划、酒店餐饮推荐、车票服务等生活服务路由。
+- 支持流式聊天接口。
+- Vue 3 Web 前端和 Capacitor Android App。
+- Docker Compose 一键部署前端、后端、MySQL 和 Redis。
 
 ## 技术栈
 
-- 后端：Python、FastAPI、SQLAlchemy Async、Pydantic、Uvicorn
-- 数据库：MySQL、ChromaDB
-- Agent 与 LLM：LangGraph、LangChain、LangChain OpenAI、LangChain MCP Adapters
-- 文档与检索：Docling、Chroma、BM25、FlagEmbedding、Transformers、Torch
-- 前端：Vue 3、Vue Router、Vite
-- 移动端：Capacitor Android
+- 后端：Python 3.11、FastAPI、Uvicorn、SQLAlchemy Async、Pydantic。
+- 数据存储：MySQL 8、Redis、ChromaDB。
+- AI/RAG：LangGraph、LangChain、langchain-openai、Docling、FlagEmbedding、Transformers、Torch。
+- 前端：Vue 3、Vue Router、Vite。
+- 移动端：Capacitor Android。
+- 部署：Docker、Docker Compose、Nginx。
 
 ## 项目结构
 
@@ -70,165 +36,53 @@ Agent 2.0 是一个面向旅行与生活服务场景的智能助手项目，包�
 .
 ├── backend/
 │   └── app/
-│       ├── agent/              # 双 Agent 工作流、记忆 Agent、对话 Agent、工具封装
-│       ├── api/
-│       │   ├── deps.py         # 登录态依赖与鉴权
-│       │   └── routes/         # auth / chat / vector-store / feedback 路由
-│       ├── core/               # 数据库初始化与会话
+│       ├── agent/              # Agent 对话与记忆逻辑
+│       ├── api/                # FastAPI 路由
+│       ├── core/               # 数据库等核心配置
 │       ├── crued/              # 数据访问层
+│       ├── memory/             # 长短期记忆模块
 │       ├── models/             # SQLAlchemy 模型
-│       ├── schemas/            # Pydantic 请求与响应模型
-│       ├── services/           # 认证、文档、对话、反馈、GraphRAG 服务
+│       ├── schemas/            # Pydantic Schema
+│       ├── services/           # 业务服务
 │       └── main.py             # FastAPI 应用入口
 ├── frontend/
 │   ├── android/                # Capacitor Android 工程
-│   ├── src/
-│   │   ├── api/                # API 客户端
-│   │   ├── components/         # 页面组件
-│   │   ├── composables/        # 前端业务状态与逻辑
-│   │   ├── router/             # Vue Router
-│   │   └── views/              # 登录、注册、聊天、文档、账号页面
+│   ├── deploy/                 # 前端容器 Nginx 配置
+│   ├── src/                    # Vue 应用源码
 │   ├── package.json
 │   └── vite.config.js
-├── llm/                        # 文档切分、知识库、检索、重排和 LLM 相关模块
-├── skills/
-│   └── travel-life-service-auto-router/
-│       ├── SKILL.md
-│       └── references/         # 旅行规划、车票、餐饮酒店、RAG、通用聊天参考规则
-├── tests/                      # Agent 工作流与记忆相关测试
-├── chroma_db/                  # 本地向量库运行时数据，通常不提交
-├── backend/data/               # 上传文件和应用状态运行时数据，通常不提交
-├── main.py                     # 根入口，导出 backend.app.main:app
+├── llm/                        # 知识库、检索和模型调用
+├── memory/                     # 长期记忆 Markdown 模板
+├── skills/                     # Agent 技能与参考资料
+├── tests/                      # 测试目录
+├── compose.yaml                # Docker Compose 配置
+├── Dockerfile                  # 后端容器配置
 ├── project_config.py           # 项目运行配置
 └── requirements.txt            # Python 依赖
 ```
 
-## 环境要求
+## 本地开发
 
-- Python 3.11 或更高版本
-- Node.js 18 或更高版本
-- MySQL 8.x
-- 可访问的 OpenAI 兼容 API
-- 如需本地重排模型，建议准备可用 GPU；没有 GPU 时需要调整 `project_config.py` 中的 rerank 设备配置
-- 如需 Android 打包，需要 Android Studio 与 JDK
-
-## 快速开始
-
-```bash
-git clone https://github.com/xiaohai5/agent-2.0.git
-cd agent-2.0
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-前端开发：
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-默认访问地址：
-
-```text
-后端：http://127.0.0.1:8000
-前端：http://127.0.0.1:5173
-```
-
-## 配置说明
-
-项目默认从环境变量读取敏感配置。建议在本地创建 `.env` 或使用系统环境变量保存密钥，避免将真实密钥提交到 GitHub。
-
-常用环境变量示例：
-
-```env
-OPENAI_API_KEY=your-openai-api-key
-OPENAI_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4o-mini
-EMBEDDING_MODEL=text-embedding-3-small
-ASYNC_DATABASE_URL=mysql+aiomysql://root:password@localhost:3306/agent?charset=utf8mb4
-AMAP_MCP_URL=https://mcp.amap.com/mcp?key=your-amap-key
-TICKET_MCP_COMMAND=npx
-LANGSMITH_API_KEY=
-LANGSMITH_PROJECT=agent-2.0
-```
-
-前端环境变量示例：
-
-```env
-VITE_API_BASE_URL=http://127.0.0.1:8000
-```
-
-## 后端启动
-
-1. 创建并激活 Python 虚拟环境。
+### 后端
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
-```
-
-2. 安装后端依赖。
-
-```bash
 pip install -r requirements.txt
-```
-
-3. 创建 MySQL 数据库。
-
-```sql
-CREATE DATABASE agent CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-4. 修改 `project_config.py` 中的运行配置。
-
-至少需要确认以下配置：
-
-- `openai_api_key`：OpenAI 或兼容服务的 API Key
-- `openai_base_url`：OpenAI 兼容接口地址
-- `llm_model`：对话模型名称
-- `embedding_model`：Embedding 模型名称
-- `async_database_url`：MySQL 异步连接地址，例如 `mysql+aiomysql://root:123456@localhost:3306/agent?charset=utf8mb4`
-- `chroma_persist_directory`：Chroma 向量库目录，默认 `./chroma_db`
-- `amap_mcp_url`：高德 MCP 地址，用于地图、POI 等旅行生活服务
-- `ticket_mcp_command` / `ticket_mcp_args`：12306 MCP 工具启动配置
-- `http_proxy` / `https_proxy` / `all_proxy` / `no_proxy`：按需设置代理
-
-注意：当前配置文件中包含本地开发用的密钥字段。正式提交或部署前，建议改为环境变量或私有配置文件管理，避免密钥泄露。
-
-5. 启动后端服务。
-
-```bash
-uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-也可以使用根入口启动。
-
-```bash
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-6. 检查服务状态。
+健康检查：
 
 ```text
 http://127.0.0.1:8000/api/health
 ```
 
-## 前端启动
-
-1. 安装依赖。
+### 前端
 
 ```bash
 cd frontend
 npm install
-```
-
-2. 本地开发启动。
-
-```bash
 npm run dev
 ```
 
@@ -238,230 +92,119 @@ npm run dev
 http://127.0.0.1:5173
 ```
 
-3. 配置 API 地址。
+开发环境下，Vite 会把 `/api` 代理到 `http://127.0.0.1:8000`。
 
-浏览器本地开发时，`frontend/.env.example` 中的 `VITE_API_BASE_URL` 可以留空，并通过 Vite 代理访问后端。
+## 环境变量
 
-Android 或远程后端调试时，复制 `.env.example` 为 `.env`，并设置后端地址：
+后端根目录 `.env` 示例：
 
 ```env
-VITE_API_BASE_URL=http://192.168.1.10:8000
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4o-mini
+EMBEDDING_MODEL=text-embedding-3-small
+ASYNC_DATABASE_URL=mysql+aiomysql://root:password@localhost:3306/agent?charset=utf8mb4
+REDIS_URL=redis://localhost:6379/0
+AMAP_MCP_URL=https://mcp.amap.com/mcp?key=your-amap-key
+TICKET_MCP_COMMAND=npx
+TICKET_MCP_ARGS=-y,12306-mcp
+LANGSMITH_API_KEY=
+LANGSMITH_PROJECT=agent-2.0
 ```
 
-4. 构建前端。
+前端 `.env.production` 示例：
+
+```env
+VITE_API_BASE_URL=https://your-domain.com
+```
+
+如果前端和后端通过同一个域名部署，且 Nginx 将 `/api` 转发到后端，可以将 `VITE_API_BASE_URL` 留空。
+
+## Docker Compose 部署
+
+复制环境变量模板：
 
 ```bash
-npm run build
+cp .env.docker.example .env
 ```
 
-## Android 调试
+编辑 `.env`，填写真实密钥和数据库密码，然后启动：
 
-同步 Capacitor 工程：
+```bash
+docker compose up -d --build
+```
+
+查看状态：
+
+```bash
+docker compose ps
+docker compose logs -f backend
+```
+
+访问：
+
+```text
+http://your-server-ip
+```
+
+详细步骤见 [Docker Compose 部署文档](docs/deploy-compose.md)。
+
+## Android App 构建
+
+手机 App 基于 Capacitor Android。构建前先确认正式 API 地址：
+
+```env
+VITE_API_BASE_URL=https://your-domain.com
+```
+
+然后执行：
 
 ```bash
 cd frontend
-npm run cap:sync
+npm install
+npm run build
+npx cap sync android
 ```
 
-构建并打开 Android 工程：
-
-```bash
-npm run cap:android
-```
-
-使用移动端实时调试：
-
-```bash
-npm run dev:mobile
-npm run android:live
-```
-
-`android:live` 默认使用 `http://10.0.2.2:5173`，适合 Android 模拟器访问宿主机 Vite 服务。
-
-## API 概览
-
-### 健康检查
+使用 Android Studio 打开：
 
 ```text
-GET /
-GET /api/health
-GET /api/image-proxy?url=<image_url>
+frontend/android
 ```
 
-### 用户认证
+可以生成调试 APK，或生成签名后的 release APK/AAB 用于分发和上架。
+
+注意：真机 App 不能使用 `http://127.0.0.1:8000` 作为后端地址，必须使用公网 IP 或域名。
+
+## 常用 API
 
 ```text
+GET  /
+GET  /api/health
+GET  /api/image-proxy?url=<image_url>
+
 POST /api/auth/register
 POST /api/auth/login
 GET  /api/auth/profile
 POST /api/auth/change-password
+
+POST /api/chat/completion
+POST /api/chat/completion/stream
+
+GET  /api/vector-store/documents
+POST /api/vector-store/upload
+POST /api/feedback
 ```
 
-除注册和登录外，接口需要请求头：
+需要登录的接口请携带：
 
 ```text
 Authorization: Bearer <access_token>
 ```
 
-### 智能对话
+## 注意事项
 
-```text
-POST /api/chat/completion
-POST /api/chat/completion/stream
-```
-
-请求体示例：
-
-```json
-{
-  "question": "帮我规划一个两天的杭州旅行",
-  "top_k": 5,
-  "history": [],
-  "conversation_id": "demo-conversation"
-}
-```
-
-流式接口返回 `application/x-ndjson`，事件类型包含 `status`、`chunk`、`done`、`error`。
-
-### 文档知识库
-
-```text
-POST   /api/vector-store/upload
-GET    /api/vector-store/documents
-GET    /api/vector-store/graph?filename=<filename>
-DELETE /api/vector-store/documents?filename=<filename>
-```
-
-上传接口使用 `multipart/form-data`，字段名为 `file`。
-
-### 用户反馈
-
-```text
-POST /api/feedback
-```
-
-请求体示例：
-
-```json
-{
-  "conversation_id": "demo-conversation",
-  "message_id": "assistant-message-id",
-  "user_message": "用户原始问题",
-  "ai_message": "AI 回复内容",
-  "feedback_type": "like",
-  "route": "chat",
-  "model": "gpt-4o-mini",
-  "tool_calls": null,
-  "answer_source": null
-}
-```
-
-`feedback_type` 支持 `like` 和 `dislike`。
-
-### 反馈导出
-
-导出全部反馈：
-
-```text
-GET /api/feedback/export/all?format=csv
-GET /api/feedback/export/all?format=json
-GET /api/feedback/export/all?feedback_type=like&format=csv
-GET /api/feedback/export/all?feedback_type=dislike&format=csv
-```
-
-导出 DPO 数据集：
-
-```text
-GET /api/feedback/export/dpo?format=jsonl
-GET /api/feedback/export/dpo?format=json
-GET /api/feedback/export/dpo?format=csv
-```
-
-JSONL 下载示例：
-
-```bash
-curl "http://127.0.0.1:8000/api/feedback/export/dpo?format=jsonl" -o dpo_feedback_dataset.jsonl
-```
-
-DPO 数据结构示例：
-
-```json
-{
-  "prompt": "用户问题",
-  "chosen": "更优回答",
-  "rejected": "较差回答",
-  "chosen_messages": [
-    {"role": "user", "content": "用户问题"},
-    {"role": "assistant", "content": "更优回答"}
-  ],
-  "rejected_messages": [
-    {"role": "user", "content": "用户问题"},
-    {"role": "assistant", "content": "较差回答"}
-  ],
-  "metadata": {}
-}
-```
-
-## 数据表
-
-应用启动时会通过 `Base.metadata.create_all` 自动创建数据表。当前主要表包括：
-
-- `users`：用户账号信息
-- `user_tokens`：登录 Token
-- `user_memory`：用户长期记忆状态
-- `document_items`：上传文档记录
-- `message_feedback`：AI 回复反馈与训练数据来源
-- GraphRAG 相关表：语义块、实体、关系等图谱数据
-
-## 测试与检查
-
-编译检查后端代码：
-
-```bash
-python -m compileall backend\app
-```
-
-运行测试：
-
-```bash
-pytest
-```
-
-构建前端：
-
-```bash
-cd frontend
-npm run build
-```
-
-## 运行时目录与版本控制
-
-以下目录或文件属于运行时数据、依赖或构建产物，已经在 `.gitignore` 中排除，通常不应提交：
-
-- `chroma_db/`
-- `backend/data/`
-- `frontend/node_modules/`
-- `frontend/dist/`
-- `frontend/android/**/build/`
-- `__pycache__/`
-- `md5.txt`
-
-如果需要迁移知识库或上传文件数据，请单独备份 `chroma_db/` 和 `backend/data/`。
-
-## 常见问题
-
-### 后端启动时报数据库连接失败
-
-请确认 MySQL 已启动，数据库 `agent` 已创建，并检查 `project_config.py` 中的 `async_database_url` 用户名、密码、端口和数据库名是否正确。
-
-### 上传文档或检索很慢
-
-文档解析、Embedding、重排模型加载和 Chroma 写入都可能耗时。大文件上传时可关注 `upload_timeout_seconds`，如果没有 GPU，也可以关闭重排或将 `rerank_device` 调整为 CPU。
-
-### 前端请求后端失败
-
-请确认后端运行在 `http://127.0.0.1:8000`，浏览器开发时检查 Vite 代理配置；Android 真机调试时不要使用 `127.0.0.1` 指向电脑，需要改为电脑在局域网中的 IP 地址。
-
-### MCP 工具不可用
-
-高德和 12306 工具依赖 `project_config.py` 中的 MCP 配置以及本机网络环境。若工具不可用，对话主流程仍可运行，但实时地图、POI、车票信息能力会受影响。
+- `.env`、`chroma_db/`、`backend/data/`、`frontend/dist/`、`node_modules/` 不应提交到 Git。
+- 生产环境建议启用 HTTPS。
+- 如果单独部署前后端域名，需要在后端 CORS 中加入正式前端域名。
+- Docker 部署时，MySQL、Redis、Chroma 和 memory 数据都通过 volume 持久化。

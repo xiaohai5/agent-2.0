@@ -1,13 +1,14 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.schema import ForeignKey
+
 from backend.app.models import Base
 
 
 class UploadResponse(Base):
-    """上传记录表，对应 /api/vector-store/upload 响应结构."""
+    """上传记录表，对应 /api/vector-store/upload 的响应记录。"""
 
     __tablename__ = "upload_responses"
 
@@ -19,7 +20,7 @@ class UploadResponse(Base):
 
 
 class DocumentItem(Base):
-    """文档列表表，对应 /api/vector-store/documents 每一项."""
+    """文档列表表，对应 /api/vector-store/documents 的每一项。"""
 
     __tablename__ = "documents"
 
