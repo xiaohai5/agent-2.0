@@ -6,6 +6,30 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+
+def _split_env_args(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
+    if not value:
+        return default
+    args = tuple(item.strip() for item in value.split(",") if item.strip())
+    return args or default
+
+
+def _resolve_amap_mcp_url() -> str:
+    url = os.getenv("AMAP_MCP_URL", "").strip()
+    if url:
+        return url
+
+    key = os.getenv("AMAP_MCP_KEY", "").strip()
+    if key:
+        return f"https://mcp.amap.com/mcp?key={key}"
+
+    return "https://mcp.amap.com/mcp?key=your-amap-key"
+
 
 def _parse_bool(value: str | bool | None, default: bool) -> bool:
     if value is None:
@@ -100,14 +124,16 @@ class ProjectSettings:
     docling_tokenizer: str = "BAAI/bge-m3"
     docling_export_type: str = "markdown"
     vector_collection: str = "knowledge_base"
-    chroma_persist_directory: str = "./chroma_db"
-    md5_path: str = "./md5.txt"
+    chroma_persist_directory: str = os.getenv("CHROMA_PERSIST_DIRECTORY", "./chroma_db")
+    md5_path: str = os.getenv("MD5_PATH", "./md5.txt")
     max_token_limit: int = 10
     retrieval_profile: str = "online"
     async_database_url: str = os.getenv(
         "ASYNC_DATABASE_URL",
         "mysql+aiomysql://root:password@localhost:3306/agent?charset=utf8mb4",
     )
+    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    short_memory_ttl_seconds: int = int(os.getenv("SHORT_MEMORY_TTL_SECONDS", "604800"))
     chunk_size: int = 500
     chunk_overlap: int = 50
     table_row_batch_size: int = 5
@@ -139,9 +165,9 @@ class ProjectSettings:
     rerank_device: str = "cuda:0"
     rerank_use_fp16: bool = True
     rerank_normalize: bool = True
-    amap_mcp_url: str = os.getenv("AMAP_MCP_URL", "https://mcp.amap.com/mcp?key=your-amap-key")
+    amap_mcp_url: str = _resolve_amap_mcp_url()
     ticket_mcp_command: str = os.getenv("TICKET_MCP_COMMAND", "npx")
-    ticket_mcp_args: tuple[str, ...] = ("-y", "12306-mcp")
+    ticket_mcp_args: tuple[str, ...] = _split_env_args(os.getenv("TICKET_MCP_ARGS"), ("-y", "12306-mcp"))
     http_proxy: str = ""
     https_proxy: str = ""
     all_proxy: str = ""

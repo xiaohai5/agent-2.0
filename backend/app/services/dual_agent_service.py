@@ -1,47 +1,46 @@
-"""
-双 Agent 聊天服务
-集成 Memory Agent 和 Dialog Agent 的服务层
-使用 MySQL 持久化记忆状态
-"""
 from __future__ import annotations
 
+import asyncio
+import logging
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from project_config import SETTINGS
 from backend.app.agent.dual_agent_workflow import DualAgentWorkflow
-from backend.app.agent.memory_state import MemoryState
-from backend.app.crued import user_memory as memory_crud
+from backend.app.agent.memory_state import CompressedMessage, MemoryState, MemoryUpdateLog, ToolCallSummary
+from backend.app.memory.redis_store import RedisShortTermMemoryStore
+
+
+logger = logging.getLogger(__name__)
 
 
 class DualAgentChatService:
-    """双 Agent 聊天服务 - 使用 Memory Agent + Dialog Agent + MySQL"""
-
     def __init__(self) -> None:
         skill_path = Path(__file__).resolve().parents[3] / "skills" / "travel-life-service-auto-router" / "SKILL.md"
         self.workflow = DualAgentWorkflow(skill_path=skill_path)
+        self.short_memory_store = RedisShortTermMemoryStore()
 
-    async def _get_user_memory(self, db: AsyncSession, user_id: int) -> MemoryState | None:
-        """从 MySQL 获取用户的记忆状态"""
-        memory_dict = await memory_crud.get_user_memory(db, user_id)
-        return memory_dict if memory_dict else None
+    async def _get_short_memory(self, user_id: int, conversation_id: str | None) -> MemoryState | None:
+        memory_dict = await self.short_memory_store.get(user_id, conversation_id)
+        return self._normalize_memory_state(memory_dict) if memory_dict else None
 
-    async def _save_user_memory(self, db: AsyncSession, user_id: int, memory_state: MemoryState) -> None:
-        """保存用户的记忆状态到 MySQL"""
-        await memory_crud.save_user_memory(db, user_id, memory_state)
+    async def _save_short_memory(
+        self,
+        user_id: int,
+        conversation_id: str | None,
+        memory_state: MemoryState,
+    ) -> None:
+        await self.short_memory_store.set(user_id, conversation_id, memory_state)
 
     async def answer(
         self,
-        db: AsyncSession,
         user_id: int,
         question: str,
         top_k: int,
-        history: list[dict[str, Any]]
+        history: list[dict[str, Any]],
+        conversation_id: str | None = None,
     ) -> dict[str, Any]:
-        """生成回答（非流式）"""
-        memory_state = await self._get_user_memory(db, user_id)
+        memory_state = await self._get_short_memory(user_id, conversation_id)
 
         if memory_state is None and history:
             memory_state = await self._initialize_memory_from_history(history)
@@ -53,13 +52,12 @@ class DualAgentChatService:
             memory_state=memory_state,
         )
 
-        await self._save_user_memory(db, user_id, updated_memory)
-
-        next_history = self._build_history_from_memory(updated_memory)
+        await self._save_short_memory(user_id, conversation_id, updated_memory)
+        self._schedule_long_term_update(question, answer)
 
         return {
             "answer": answer,
-            "history": next_history,
+            "history": self._build_history_from_memory(updated_memory),
             "status": "completed",
             "route": "chat",
             "model": SETTINGS.llm_model,
@@ -69,22 +67,20 @@ class DualAgentChatService:
 
     async def answer_stream(
         self,
-        db: AsyncSession,
         user_id: int,
         question: str,
         top_k: int,
-        history: list[dict[str, Any]]
+        history: list[dict[str, Any]],
+        conversation_id: str | None = None,
     ):
-        """生成回答（流式）"""
-        yield {"type": "status", "message": "loading_memory"}
-        memory_state = await self._get_user_memory(db, user_id)
+        yield {"type": "status", "message": "loading_short_memory"}
+        memory_state = await self._get_short_memory(user_id, conversation_id)
 
         if memory_state is None and history:
-            yield {"type": "status", "message": "initializing_memory"}
+            yield {"type": "status", "message": "initializing_short_memory"}
             memory_state = await self._initialize_memory_from_history(history)
 
         yield {"type": "status", "message": "generating_answer"}
-        final_memory = None
         async for event in self.workflow.run_stream(
             user_input=question,
             user_id=user_id,
@@ -96,18 +92,17 @@ class DualAgentChatService:
 
             if event.get("type") == "done":
                 final_memory = event.get("memory_state")
+                answer = event.get("answer", "")
                 if final_memory:
-                    yield {"type": "status", "message": "saving_memory"}
-                    await self._save_user_memory(db, user_id, final_memory)
-
-                next_history = self._build_history_from_memory(final_memory) if final_memory else history
+                    await self._save_short_memory(user_id, conversation_id, final_memory)
+                    self._schedule_long_term_update(question, answer)
 
                 yield {"type": "status", "message": "ready_to_render"}
                 yield {
                     "type": "done",
                     "payload": {
-                        "answer": event.get("answer", ""),
-                        "history": next_history,
+                        "answer": answer,
+                        "history": self._build_history_from_memory(final_memory) if final_memory else history,
                         "status": event.get("status", "completed"),
                         "route": "chat",
                         "model": SETTINGS.llm_model,
@@ -117,7 +112,6 @@ class DualAgentChatService:
                 }
 
     async def _initialize_memory_from_history(self, history: list[dict[str, Any]]) -> MemoryState:
-        """从历史消息初始化记忆状态"""
         memory_state = self.workflow.memory_agent.initialize_memory()
 
         for i in range(0, len(history), 2):
@@ -135,20 +129,67 @@ class DualAgentChatService:
         return memory_state
 
     def _build_history_from_memory(self, memory_state: MemoryState) -> list[dict[str, Any]]:
-        """从记忆状态构建历史"""
-        history = []
-
-        for msg in memory_state["recent_full_memory"]:
-            history.append({
+        return [
+            {
                 "role": msg["role"],
                 "content": msg["content"],
-            })
+            }
+            for msg in memory_state["recent_full_memory"]
+        ]
 
-        return history
+    async def clear_user_memory(self, user_id: int, conversation_id: str | None = None) -> None:
+        await self.short_memory_store.delete(user_id, conversation_id)
 
-    async def clear_user_memory(self, db: AsyncSession, user_id: int) -> None:
-        """清空用户记忆"""
-        await memory_crud.delete_user_memory(db, user_id)
+    def _schedule_long_term_update(self, question: str, answer: str) -> None:
+        async def runner() -> None:
+            try:
+                await self.workflow.memory_agent.update_long_term_memory(question, answer)
+            except Exception:
+                logger.exception("Long-term memory update failed")
+
+        asyncio.create_task(runner())
+
+    def _normalize_memory_state(self, state: dict[str, Any]) -> MemoryState:
+        memory_state = self.workflow.memory_agent.initialize_memory()
+        memory_state.update(state)
+        memory_state["mid_compressed_memory"] = [
+            item
+            if isinstance(item, CompressedMessage)
+            else CompressedMessage(
+                role=item.get("role", "memory"),
+                compressed_content=item.get("compressed_content", item.get("content", "")),
+                original_length=int(item.get("original_length", 0)),
+                compressed_length=int(item.get("compressed_length", 0)),
+                timestamp=float(item.get("timestamp", 0)),
+                tool_calls=[],
+            )
+            for item in memory_state.get("mid_compressed_memory", [])
+        ]
+        memory_state["latest_tool_results"] = [
+            item
+            if isinstance(item, ToolCallSummary)
+            else ToolCallSummary(
+                tool_name=item.get("tool_name", "unknown"),
+                action=item.get("action", ""),
+                key_params=item.get("key_params", {}),
+                result_summary=item.get("result_summary", ""),
+                success=bool(item.get("success", True)),
+                timestamp=float(item.get("timestamp", 0)),
+            )
+            for item in memory_state.get("latest_tool_results", [])
+        ]
+        memory_state["memory_update_log"] = [
+            item
+            if isinstance(item, MemoryUpdateLog)
+            else MemoryUpdateLog(
+                action=item.get("action", ""),
+                message_indices=item.get("message_indices", []),
+                description=item.get("description", ""),
+                timestamp=float(item.get("timestamp", 0)),
+            )
+            for item in memory_state.get("memory_update_log", [])
+        ]
+        return memory_state
 
 
 dual_agent_chat_service = DualAgentChatService()

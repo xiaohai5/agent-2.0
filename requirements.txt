@@ -5,6 +5,7 @@ pydantic[email]
 python-multipart
 aiomysql
 pymysql
+redis
 python-dotenv
 langgraph>=0.2.0
 langchain>=0.3.0

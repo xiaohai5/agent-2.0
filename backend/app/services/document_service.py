@@ -150,12 +150,12 @@ class DocumentService:
                 detail=f"Vector store delete failed: {exc}",
             ) from exc
 
-        existing_record = await doc_crud.find_document_by_filename(db, user_id=user_id, filename=filename)
-        if existing_record:
+        existing_records = await doc_crud.find_documents_by_filename(db, user_id=user_id, filename=filename)
+        for existing_record in existing_records:
             await graph_crud.delete_document_graph(db, user_id=user_id, document_id=existing_record.id)
 
-        record = await doc_crud.delete_document(db, user_id=user_id, filename=filename)
-        if not record and deleted_chunks == 0:
+        records = await doc_crud.delete_document(db, user_id=user_id, filename=filename)
+        if not records and deleted_chunks == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
         await db.commit()

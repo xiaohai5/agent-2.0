@@ -16,6 +16,7 @@ from langchain_openai import ChatOpenAI
 from llm.llm import read_llm
 from project_config import SETTINGS
 
+from .models import ModuleName
 from .skill_loader import load_skill_metadata, read_reference
 from .tools import build_default_tools
 
@@ -537,15 +538,51 @@ class DialogAgent:
 
         return "\n".join(line for line in sections if line is not None).strip() or None
 
-    def _build_system_prompt(self, memory_context: dict[str, Any]) -> str:
+    def _select_reference_module(self, current_input: str, memory_context: dict[str, Any]) -> ModuleName:
+        text_parts = [current_input]
+        for message in memory_context.get("recent_full_memory", [])[-4:]:
+            text_parts.append(str(message.get("content", "")))
+        text = "\n".join(text_parts).lower()
+        current = current_input.strip().lower()
+
+        low_info = {"hi", "hello", "thanks", "thank you", "ok", "嗯", "好的", "谢谢", "你好", "在吗", "继续", "然后呢"}
+        if current in low_info or len(current_input.strip()) <= 3:
+            return "general_chat"
+        if any(word in text for word in ("车票", "火车", "高铁", "动车", "12306", "车次", "余票", "票价", "座位")):
+            return "ticket_service"
+        if any(word in text for word in ("酒店", "民宿", "住宿", "住哪", "餐厅", "吃饭", "美食", "附近吃", "附近住")):
+            return "hotel_restaurant"
+        if any(word in text for word in ("规则", "政策", "流程", "怎么办理", "规定", "说明", "为什么")):
+            return "rag"
+        if any(word in text for word in ("旅游", "旅行", "行程", "攻略", "景点", "路线", "怎么玩", "几天", "一日游", "日游", "游玩")):
+            return "travel_planning"
+        return "general_chat"
+
+    def _build_system_prompt(self, memory_context: dict[str, Any], current_input: str) -> str:
         """构建系统提示词 - 基于分层记忆"""
-        references = [read_reference(reference) for reference in self.skill.references.values()]
-        reference_blob = "\n\n".join(references)
+        module = self._select_reference_module(current_input, memory_context)
+        reference_blob = read_reference(self.skill.references[module])
 
         # 构建记忆上下文文本
         memory_text_parts = []
 
         # 1. 长期摘要（如果存在）
+        memory_text_parts = []
+
+        retrieved_long_term = memory_context.get("retrieved_long_term_memory", [])
+        if retrieved_long_term:
+            memory_text_parts.append("=== Retrieved Long-Term Markdown Memory ===")
+            for item in retrieved_long_term:
+                memory_text_parts.append(f"Source: {item['file']} > {item['section']}")
+                memory_text_parts.append(item["content"])
+            memory_text_parts.append("")
+
+        session_summary = memory_context.get("session_summary")
+        if session_summary:
+            memory_text_parts.append("=== Short-Term Session Summary ===")
+            memory_text_parts.append(str(session_summary))
+            memory_text_parts.append("")
+
         long_term = memory_context.get("long_term_summary")
         if long_term:
             memory_text_parts.append("=== 长期记忆摘要 ===")
@@ -766,7 +803,8 @@ class DialogAgent:
             f"skill 名称：{self.skill.name}\n"
             f"skill 描述：{self.skill.description}\n\n"
             f"skill 原文：\n{self.skill_text}\n\n"
-            f"skill 参考：\n{reference_blob}\n\n"
+            f"selected module：{module}\n"
+            f"module reference：\n{reference_blob}\n\n"
             "=== 分层记忆上下文 ===\n"
             f"{memory_blob}\n"
             "请基于当前用户问题和上述分层记忆，输出自然、简洁、适合手机阅读的中文回答。"
@@ -896,7 +934,7 @@ class DialogAgent:
     ) -> str:
         """生成回复 - 基于当前输入和记忆上下文，支持工具调用"""
         agent = await self._get_agent(user_id=user_id, top_k=top_k)
-        system_prompt = self._build_system_prompt(memory_context)
+        system_prompt = self._build_system_prompt(memory_context, current_input)
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": current_input},

@@ -28,6 +28,21 @@ def _serialize_memory_state(obj: Any) -> Any:
 
 def _deserialize_memory_state(state: dict[str, Any]) -> dict[str, Any]:
     """将从数据库读取的纯字典还原为含 dataclass 对象的 MemoryState"""
+    state.setdefault("current_user_input", "")
+    state.setdefault("session_summary", "")
+    state.setdefault("current_task", "")
+    state.setdefault("recent_full_memory", [])
+    state.setdefault("retrieved_long_term_memory", [])
+    state.setdefault("last_long_term_updates", [])
+    state.setdefault("long_term_summary", None)
+    state.setdefault("latest_tool_results", [])
+    state.setdefault("user_preferences", {})
+    state.setdefault("confirmed_constraints", [])
+    state.setdefault("pending_items", [])
+    state.setdefault("memory_update_log", [])
+    state.setdefault("total_message_count", len(state.get("recent_full_memory", [])))
+    state.setdefault("last_update_timestamp", 0)
+
     state["mid_compressed_memory"] = [
         CompressedMessage(
             role=m["role"],

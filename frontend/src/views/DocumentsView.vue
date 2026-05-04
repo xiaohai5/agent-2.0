@@ -1,76 +1,66 @@
 <template>
-  <section class="view-scroll">
-    <article class="panel-card">
-      <div class="panel-head">
-        <div class="head-copy">
-          <h2>文档中心</h2>
-          <p>上传、管理并查看当前账户下的知识文档。</p>
-        </div>
-        <span class="panel-pill">docs</span>
-      </div>
-
+  <section class="ios-page ios-page-stack ios-scroll">
+    <PagePanel title="文档中心" description="上传、索引并管理当前账户下的知识文档。" eyebrow="Docs">
       <div class="tag-row">
-        <span>统一响应</span>
         <span>Token 鉴权</span>
-        <span>本地存储</span>
+        <span>自动索引</span>
+        <span>问答检索</span>
       </div>
 
-      <label class="field">
-        <span>上传文档</span>
-        <input type="file" @change="app.pickFile" />
-      </label>
+      <div class="form-stack">
+        <IosField label="上传文档">
+          <input type="file" @change="app.pickFile" />
+        </IosField>
 
-      <div class="action-row">
-        <button class="ghost" type="button" :disabled="app.loading.upload" @click="app.uploadDoc">
-          {{ app.loading.upload ? "上传中..." : "上传文档" }}
-        </button>
-        <button class="ghost" type="button" @click="app.vectorize">查看检索范围</button>
-      </div>
-
-      <label class="field">
-        <span>检索范围</span>
-        <select v-model="app.scope.value">
-          <option value="当前登录用户文档">当前登录用户文档</option>
-          <option value="最近上传文档">最近上传文档</option>
-          <option value="全部已索引文档">全部已索引文档</option>
-        </select>
-      </label>
-
-      <div class="action-row">
-        <button class="primary" type="button" :disabled="app.loading.docs" @click="app.fetchDocs">
-          {{ app.loading.docs ? "刷新中..." : "查看文档列表" }}
-        </button>
-      </div>
-
-      <div class="status-box">{{ app.chatStatus.value }}</div>
-    </article>
-
-    <article class="panel-card">
-      <div class="panel-head">
-        <div class="head-copy">
-          <h2>文档列表</h2>
-          <p>向下滑动查看当前接口返回的文档内容。</p>
+        <div class="ios-action-row">
+          <IosButton :disabled="app.loading.upload" @click="app.uploadDoc">
+            {{ app.loading.upload ? "上传中..." : "上传文档" }}
+          </IosButton>
+          <IosButton variant="secondary" @click="app.vectorize">查看检索范围</IosButton>
         </div>
-        <span class="panel-pill">list</span>
-      </div>
 
-      <div v-if="!app.docs.value.length" class="status-box">登录后即可查看当前账户下的文档列表。</div>
+        <IosField label="检索范围">
+          <select v-model="app.scope.value">
+            <option value="当前登录用户文档">当前登录用户文档</option>
+            <option value="最近上传文档">最近上传文档</option>
+            <option value="全部已索引文档">全部已索引文档</option>
+          </select>
+        </IosField>
+
+        <IosButton :disabled="app.loading.docs" @click="app.fetchDocs">
+          {{ app.loading.docs ? "刷新中..." : "查看文档列表" }}
+        </IosButton>
+
+        <div class="ios-status">{{ app.chatStatus.value }}</div>
+      </div>
+    </PagePanel>
+
+    <PagePanel title="文档列表" description="下方展示接口返回的文档状态，可直接删除。" eyebrow="List">
+      <div v-if="!app.docs.value.length" class="empty-state">
+        <span>▤</span>
+        <strong>暂无文档</strong>
+        <p>登录后上传文档，或点击刷新查看当前账户的文档列表。</p>
+      </div>
 
       <div v-else class="doc-list">
         <div v-for="doc in app.docs.value" :key="`${doc.id}-${doc.filename}`" class="doc-item">
+          <div class="doc-icon">DOC</div>
           <div class="doc-copy">
             <strong>{{ app.stringifyMessage(doc.filename) }}</strong>
             <small>#{{ doc.id }} · {{ app.stringifyMessage(doc.status) }}</small>
           </div>
-          <button class="danger" type="button" :disabled="app.loading.docs" @click="app.deleteDoc(doc.filename)">删除</button>
+          <IosButton variant="danger" :disabled="app.loading.docs" @click="app.deleteDoc(doc.filename)">删除</IosButton>
         </div>
       </div>
-    </article>
+    </PagePanel>
   </section>
 </template>
 
 <script setup>
 import { onMounted } from "vue";
+import IosButton from "../components/IosButton.vue";
+import IosField from "../components/IosField.vue";
+import PagePanel from "../components/PagePanel.vue";
 import { useAssistantApp } from "../composables/useAssistantApp";
 
 const app = useAssistantApp();
@@ -83,25 +73,115 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.view-scroll { height: 100%; min-height: 0; overflow-y: auto; padding: 0 18px calc(18px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 14px; align-content: start; }
-.panel-card { padding: 20px; border-radius: 30px; border: 1px solid var(--card-border); background: var(--card-bg); box-shadow: var(--surface-shadow); }
-.panel-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 16px; align-items: flex-start; }
-.head-copy { flex: 1; }
-.panel-head h2 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
-.panel-head p { margin: 8px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.8; letter-spacing: 0.01em; }
-.panel-pill { height: fit-content; padding: 8px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.78); color: var(--text-secondary); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-.tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.tag-row span { padding: 8px 10px; border-radius: 14px; background: rgba(255, 255, 255, 0.74); color: var(--text-secondary); font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
-.field { display: grid; gap: 8px; color: var(--text-secondary); font-size: 12px; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 12px; }
-.field input, .field select { width: 100%; padding: 14px 16px; border-radius: 20px; border: 1px solid rgba(200, 200, 207, 0.72); background: rgba(255, 255, 255, 0.92); color: var(--text-main); outline: none; line-height: 1.6; }
-.action-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-.primary, .ghost, .danger { padding: 12px 18px; border-radius: 999px; cursor: pointer; letter-spacing: 0.04em; }
-.primary, .danger { color: #fff; font-weight: 800; background: linear-gradient(180deg, var(--button-dark-start), var(--button-dark-end)); }
-.ghost { background: rgba(255, 255, 255, 0.9); border: 1px solid var(--card-border); color: var(--text-main); font-weight: 700; }
-.status-box { padding: 14px 16px; border-radius: 20px; background: rgba(255, 255, 255, 0.9); border: 1px solid var(--card-border); color: var(--text-secondary); font-size: 14px; line-height: 1.8; white-space: pre-wrap; }
-.doc-list { display: grid; gap: 10px; }
-.doc-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; border-radius: 20px; background: rgba(255, 255, 255, 0.9); border: 1px solid var(--card-border); }
-.doc-copy { min-width: 0; }
-.doc-item strong { display: block; font-size: 14px; line-height: 1.7; letter-spacing: 0.01em; word-break: break-word; }
-.doc-item small { display: block; margin-top: 4px; color: var(--text-secondary); font-size: 12px; line-height: 1.6; letter-spacing: 0.03em; word-break: break-word; }
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.tag-row span {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.form-stack {
+  display: grid;
+  gap: 13px;
+}
+
+.empty-state {
+  min-height: 170px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 24px;
+  border-radius: 14px;
+  background: #f9fafb;
+  text-align: center;
+}
+
+.empty-state span {
+  color: #d1d5db;
+  font-size: 30px;
+}
+
+.empty-state strong {
+  font-size: 17px;
+  color: #1f2937;
+}
+
+.empty-state p {
+  max-width: 280px;
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.doc-list {
+  display: grid;
+  gap: 10px;
+}
+
+.doc-item {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: #fff;
+}
+
+.doc-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #fff;
+  background: #1c1c1e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.doc-copy {
+  min-width: 0;
+}
+
+.doc-copy strong,
+.doc-copy small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.doc-copy strong {
+  font-size: 14px;
+  line-height: 1.45;
+  color: #1f2937;
+}
+
+.doc-copy small {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+@media (max-width: 420px) {
+  .doc-item {
+    grid-template-columns: 40px 1fr;
+  }
+
+  .doc-item :deep(.ios-button) {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
 </style>

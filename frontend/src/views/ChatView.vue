@@ -1,114 +1,167 @@
 <template>
   <section class="chat-page">
-    <div ref="feedRef" class="chat-feed">
-      <div v-if="app.showWelcomeCard.value" class="hero-card">
-        <div class="hero-orb"></div>
-        <strong>开始一段新的对话</strong>
-        <p>点击下方输入框后，页面会切换为正式聊天态，消息区接管空间，输入区固定在页面底部。</p>
-        <div class="prompt-list">
+    <!-- Animated bubble background -->
+    <div class="bubble-bg">
+      <div class="bubble" v-for="n in 12" :key="n" :style="bubbleStyle(n)"></div>
+    </div>
+
+    <div ref="feedRef" class="chat-feed ios-scroll">
+      <!-- Welcome screen -->
+      <div v-if="app.showWelcomeCard.value" class="welcome-screen">
+        <div class="welcome-logo">✦</div>
+        <h1 class="welcome-title">有什么可以帮你的？</h1>
+
+        <div class="prompt-grid">
           <button
             v-for="prompt in app.prompts"
             :key="prompt"
             type="button"
-            class="prompt-chip"
+            class="prompt-card"
             @click="applyPrompt(prompt)"
           >
             {{ prompt }}
           </button>
         </div>
-        <div class="meta-row">
-          <span>{{ app.chatMode.value === "stream" ? "流式问答" : "标准问答" }}</span>
-          <span>Top K {{ app.topK.value }}</span>
-          <span>{{ app.state.username || "未登录" }}</span>
+
+        <div class="meta-info">
+          <span>{{ app.chatMode.value === "stream" ? "流式" : "标准" }} · Top K {{ app.topK.value }}</span>
         </div>
       </div>
 
+      <!-- Messages -->
       <div
         v-for="(msg, index) in app.messages.value"
         :key="msg.id || `${msg.role}-${index}`"
-        class="message-row"
-        :class="{ user: msg.role === 'user' }"
+        class="message"
+        :class="{ 'is-user': msg.role === 'user', 'is-assistant': msg.role !== 'user' }"
       >
-        <div v-if="msg.role !== 'user'" class="message-mark">AI</div>
-        <div class="message-bubble" :class="[bubbleClass(msg.role), { 'is-streaming': isStreamingMessage(msg) }]">
-          <template v-if="!app.stringifyMessage(msg.content) && isStreamingMessage(msg)">
-            <div class="thinking-copy">正在思考...</div>
-          </template>
-          <template v-else-if="msg.role === 'assistant' && !isStreamingMessage(msg) && hasRichMessage(msg.content)">
-            <TravelPlanMessage :content="app.stringifyMessage(msg.content)" />
-          </template>
-          <template v-else>
-            {{ app.stringifyMessage(msg.content) }}
-          </template>
-          <div v-if="isStreamingMessage(msg)" class="thinking-dots" :class="{ compact: !!app.stringifyMessage(msg.content) }">
-            <span></span>
-            <span></span>
-            <span></span>
+        <!-- AI message layout -->
+        <template v-if="msg.role !== 'user'">
+          <div class="message-avatar">
+            <div class="avatar-circle ai-av">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+              </svg>
+            </div>
           </div>
-          <div v-if="canFeedback(msg)" class="feedback-actions">
-            <button
-              type="button"
-              class="feedback-btn"
-              :class="{ selected: msg.feedback_type === 'like' }"
-              :disabled="msg.feedbackLoading"
-              @click="app.submitFeedback(msg, 'like')"
-            >
-              喜欢
-            </button>
-            <button
-              type="button"
-              class="feedback-btn"
-              :class="{ selected: msg.feedback_type === 'dislike' }"
-              :disabled="msg.feedbackLoading"
-              @click="app.submitFeedback(msg, 'dislike')"
-            >
-              不喜欢
-            </button>
+          <div class="message-content">
+            <div class="message-body">
+              <template v-if="!app.stringifyMessage(msg.content) && isStreamingMessage(msg)">
+                <div class="bubble-bubble ai-bubble">
+                  <div class="typing-indicator">
+                    <span></span><span></span><span></span>
+                  </div>
+                </div>
+              </template>
+              <template v-else-if="!isStreamingMessage(msg) && hasRichMessage(msg.content)">
+                <div class="bubble-bubble ai-bubble rich-bubble">
+                  <TravelPlanMessage :content="app.stringifyMessage(msg.content)" />
+                  <div v-if="canShowActions(msg)" class="message-actions">
+                    <button type="button" class="action-btn" @click="copyMessage(msg)" title="复制">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button type="button" class="action-btn" :class="{ active: msg.feedback_type === 'like' }" :disabled="msg.feedbackLoading" @click="app.submitFeedback(msg, 'like')" title="喜欢">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                    </button>
+                    <button type="button" class="action-btn" :class="{ active: msg.feedback_type === 'dislike' }" :disabled="msg.feedbackLoading" @click="app.submitFeedback(msg, 'dislike')" title="不喜欢">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div class="bubble-bubble ai-bubble">
+                  {{ app.stringifyMessage(msg.content) }}
+                  <div v-if="canShowActions(msg)" class="message-actions">
+                    <button type="button" class="action-btn" @click="copyMessage(msg)" title="复制">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button type="button" class="action-btn" :class="{ active: msg.feedback_type === 'like' }" :disabled="msg.feedbackLoading" @click="app.submitFeedback(msg, 'like')" title="喜欢">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                    </button>
+                    <button type="button" class="action-btn" :class="{ active: msg.feedback_type === 'dislike' }" :disabled="msg.feedbackLoading" @click="app.submitFeedback(msg, 'dislike')" title="不喜欢">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <div v-if="isStreamingMessage(msg) && app.stringifyMessage(msg.content)" class="typing-inline">
+                <span></span><span></span><span></span>
+              </div>
+            </div>
           </div>
-        </div>
-        <div v-if="msg.role === 'user'" class="message-mark">我</div>
+        </template>
+
+        <!-- User message layout (right aligned) -->
+        <template v-else>
+          <div class="message-content user-content">
+            <div class="message-body">
+              <div class="bubble-bubble user-bubble">{{ app.stringifyMessage(msg.content) }}</div>
+            </div>
+          </div>
+          <div class="message-avatar">
+            <div class="avatar-circle user-av">{{ avatarText }}</div>
+          </div>
+        </template>
       </div>
 
-      <div v-if="app.thinking.value" class="message-row">
-        <div class="message-mark">AI</div>
-        <div class="message-bubble is-thinking">
-          <div class="thinking-copy">正在思考...</div>
-          <div class="thinking-dots">
-            <span></span>
-            <span></span>
-            <span></span>
+      <!-- Thinking state -->
+      <div v-if="app.thinking.value" class="message is-assistant">
+        <div class="message-avatar">
+          <div class="avatar-circle ai-av">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+            </svg>
+          </div>
+        </div>
+        <div class="message-content">
+          <div class="message-body">
+            <div class="bubble-bubble ai-bubble">
+              <div class="typing-indicator">
+                <span></span><span></span><span></span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <footer class="composer-shell">
-      <div class="status-line">{{ app.chatStatus.value }}</div>
-      <div class="composer-body">
-        <div class="textarea-panel">
-          <textarea
-            ref="textareaRef"
-            v-model="app.question.value"
-            :disabled="app.loading.chat"
-            placeholder="输入你的问题，AI 会结合当前资料为你整理答案"
-            @focus="handleComposerFocus"
-            @keydown.enter.exact.prevent="handleSendChat"
-            @input="syncComposerHeight"
-          ></textarea>
-
-          <div class="action-group">
-            <button class="primary" type="button" :disabled="app.loading.chat" @click="handleSendChat">
-              <span>{{ app.loading.chat ? "..." : "发送" }}</span>
-            </button>
-          </div>
-        </div>
+    <!-- Input area -->
+    <footer class="input-area">
+      <div class="input-wrapper">
+        <textarea
+          ref="textareaRef"
+          v-model="app.question.value"
+          :disabled="app.loading.chat"
+          placeholder="给 AI 助手发送消息"
+          rows="1"
+          @focus="handleComposerFocus"
+          @keydown.enter.exact.prevent="handleSendChat"
+          @input="syncComposerHeight"
+        ></textarea>
+        <button
+          class="send-button"
+          type="button"
+          :disabled="!app.question.value.trim() || app.loading.chat"
+          aria-label="发送"
+          @click="handleSendChat"
+        >
+          <svg v-if="!app.loading.chat" width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span v-else class="loading-dots"><span></span><span></span><span></span></span>
+        </button>
+      </div>
+      <div class="input-footer">
+        <span>{{ app.chatStatus.value || 'AI 助手可能会犯错，请核实重要信息' }}</span>
       </div>
     </footer>
   </section>
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import TravelPlanMessage from "../components/TravelPlanMessage.vue";
 import { useAssistantApp } from "../composables/useAssistantApp";
 
@@ -116,13 +169,25 @@ const app = useAssistantApp();
 const feedRef = ref(null);
 const textareaRef = ref(null);
 
-const MIN_TEXTAREA_HEIGHT = 28;
-const MAX_TEXTAREA_HEIGHT = 160;
+const avatarText = computed(() => (app.state.username ? app.state.username.slice(0, 1).toUpperCase() : "我"));
 
-function bubbleClass(role) {
-  if (role === "user") return "is-user";
-  if (role === "assistant") return "is-assistant";
-  return "is-system";
+const MIN_TEXTAREA_HEIGHT = 24;
+const MAX_TEXTAREA_HEIGHT = 200;
+
+function bubbleStyle(n) {
+  const size = 20 + Math.random() * 60;
+  const left = Math.random() * 100;
+  const delay = Math.random() * 20;
+  const duration = 15 + Math.random() * 20;
+  const opacity = 0.03 + Math.random() * 0.06;
+  return {
+    width: `${size}px`,
+    height: `${size}px`,
+    left: `${left}%`,
+    animationDelay: `${delay}s`,
+    animationDuration: `${duration}s`,
+    opacity: opacity,
+  };
 }
 
 function isStreamingMessage(msg) {
@@ -134,12 +199,20 @@ function hasRichMessage(content) {
   return /!\[[^\]]*\]\(https?:\/\/[^)\s]+\)/.test(text) || /^(🍜|🏨)?\s*(餐厅|酒店)\s*\d+/m.test(text);
 }
 
-function canFeedback(msg) {
+function canShowActions(msg) {
   return msg?.role === "assistant" && !msg?.streaming && !!app.stringifyMessage(msg.content);
+}
+
+function copyMessage(msg) {
+  const text = app.stringifyMessage(msg.content);
+  if (text) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
 }
 
 function applyPrompt(prompt) {
   app.question.value = prompt;
+  app.dismissWelcomeCard();
 }
 
 function handleComposerFocus() {
@@ -147,8 +220,9 @@ function handleComposerFocus() {
 }
 
 async function handleSendChat() {
+  if (!app.question.value.trim()) return;
   await app.sendChat();
-  await pinFeedToBottom();
+  await pinFeedToBottom("smooth");
 }
 
 async function pinFeedToBottom(behavior = "auto") {
@@ -163,7 +237,6 @@ async function pinFeedToBottom(behavior = "auto") {
 function syncComposerHeight() {
   const textarea = textareaRef.value;
   if (!textarea) return;
-
   textarea.style.height = "auto";
   const nextHeight = Math.min(Math.max(textarea.scrollHeight, MIN_TEXTAREA_HEIGHT), MAX_TEXTAREA_HEIGHT);
   textarea.style.height = `${nextHeight}px`;
@@ -202,329 +275,458 @@ onMounted(async () => {
 .chat-page {
   height: 100%;
   min-height: 0;
-  display: grid;
-  grid-template-rows: 1fr auto;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  padding: 0 18px 0;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f0 100%);
+  position: relative;
+}
+
+/* Animated bubble background */
+.bubble-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bubble {
+  position: absolute;
+  bottom: -80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+  animation: float-up linear infinite;
+}
+
+@keyframes float-up {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--opacity, 0.05);
+  }
+  90% {
+    opacity: var(--opacity, 0.05);
+  }
+  100% {
+    transform: translateY(-120vh) scale(0.4);
+    opacity: 0;
+  }
 }
 
 .chat-feed {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 0 18px 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  position: relative;
+  z-index: 1;
+  padding-bottom: 8px;
 }
 
-.chat-feed::-webkit-scrollbar,
-textarea::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
+/* Welcome screen */
+.welcome-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  text-align: center;
 }
 
-.hero-card {
-  flex: 0 0 auto;
-  padding: 20px;
-  border-radius: 30px;
-  border: 1px solid var(--card-border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.54));
-  box-shadow: var(--surface-shadow);
-}
-
-.hero-orb {
-  width: 58px;
-  height: 58px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #fdfdfd, #d7d7df);
-  box-shadow: 0 14px 28px rgba(18, 18, 22, 0.08);
-}
-
-.hero-card strong {
-  display: block;
-  margin-top: 14px;
+.welcome-logo {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
   font-size: 28px;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
 }
 
-.hero-card p {
-  margin: 10px 0 0;
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.85;
+.welcome-title {
+  margin: 0 0 32px;
+  font-size: 28px;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.3;
 }
 
-.prompt-list,
-.meta-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.prompt-list {
-  margin-top: 16px;
-}
-
-.prompt-chip,
-.meta-row span {
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--card-border);
-  background: rgba(255, 255, 255, 0.82);
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.meta-row {
-  margin-top: 14px;
-}
-
-.meta-row span {
-  color: var(--text-muted);
-}
-
-.message-row {
-  display: flex;
-  align-items: flex-end;
+.prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
+  max-width: 560px;
+  width: 100%;
 }
 
-.message-row.user {
+.prompt-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.prompt-card:hover {
+  background: rgba(255, 255, 255, 0.95);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.prompt-card:active {
+  transform: scale(0.98);
+}
+
+.meta-info {
+  margin-top: 24px;
+}
+
+.meta-info span {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* Messages */
+.message {
+  display: flex;
+  gap: 10px;
+  padding: 4px 20px;
+  animation: fade-in 0.3s ease both;
+}
+
+.message.is-user {
   justify-content: flex-end;
 }
 
-.message-mark {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  border-radius: 999px;
+/* Avatar */
+.message-avatar {
+  flex: 0 0 30px;
+  align-self: center;
+}
+
+.avatar-circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
-  border: 1px solid var(--card-border);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: var(--soft-shadow);
-  color: var(--text-secondary);
   font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-weight: 600;
 }
 
-.message-bubble {
-  max-width: calc(100% - 52px);
-  padding: 14px 16px;
-  border-radius: 22px;
-  font-size: 14px;
-  line-height: 1.78;
-  white-space: pre-wrap;
-  word-break: break-word;
-  box-shadow: var(--soft-shadow);
-}
-
-.message-bubble.is-streaming {
-  min-width: 108px;
-}
-
-.is-assistant,
-.is-system,
-.is-thinking {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid var(--card-border);
-}
-
-.is-user {
-  background: linear-gradient(180deg, rgba(237, 237, 240, 0.92), rgba(223, 223, 228, 0.94));
-  border: 1px solid rgba(255, 255, 255, 0.98);
-}
-
-.thinking-copy {
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.thinking-dots {
-  display: flex;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.thinking-dots.compact {
-  margin-top: 8px;
-}
-
-.thinking-dots span {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: #8f8f97;
-  animation: pulse 1.1s ease-in-out infinite;
-}
-
-.thinking-dots span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.thinking-dots span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-.feedback-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-  padding-top: 4px;
-}
-
-.feedback-btn {
-  border: 1px solid rgba(176, 176, 184, 0.56);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.62);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 5px 8px;
-  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
-}
-
-.feedback-btn:hover,
-.feedback-btn.selected {
-  background: #1f2026;
-  border-color: #1f2026;
+.user-av {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
   color: #fff;
 }
 
-.composer-shell {
-  padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(180deg, rgba(235, 235, 239, 0), rgba(235, 235, 239, 0.88) 20%, rgba(235, 235, 239, 0.98));
+.ai-av {
+  background: #1c1c1e;
+  color: #fff;
 }
 
-.status-line {
-  min-height: 16px;
-  color: #90929b;
-  font-size: 11px;
-  line-height: 1.35;
-  letter-spacing: 0.01em;
-  margin: 0 0 4px;
-  padding: 0 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.composer-body {
+/* Message content */
+.message-content {
+  max-width: 75%;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.textarea-panel {
+.user-content {
+  align-items: flex-end;
+}
+
+/* Bubble styles - long oval shape */
+.bubble-bubble {
+  padding: 10px 16px;
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.ai-bubble {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f2937;
+  border-radius: 20px 20px 20px 6px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   position: relative;
-  display: block;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(213, 213, 219, 0.55);
-  padding: 8px 50px 10px 14px;
+  padding-bottom: 32px;
 }
 
-textarea {
-  width: 100%;
-  min-height: 28px;
+.ai-bubble .message-actions {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.ai-bubble:hover .message-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.user-bubble {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border-radius: 20px 20px 6px 20px;
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.25);
+}
+
+.rich-bubble {
+  padding: 12px 16px;
+  max-width: 320px;
+}
+
+/* Typing indicator */
+.typing-indicator {
+  display: flex;
+  gap: 5px;
+  padding: 4px 0;
+}
+
+.typing-indicator span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9ca3af;
+  animation: typing 1.4s ease-in-out infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.typing-inline {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.typing-inline span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #9ca3af;
+  animation: typing 1.4s ease-in-out infinite;
+}
+
+.typing-inline span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-inline span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Message actions */
+.message-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.action-btn {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: #c0c4cc;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.action-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #6b7280;
+}
+
+.action-btn.active {
+  color: #6366f1;
+}
+
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Input area */
+.input-area {
+  padding: 8px 20px 16px;
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(to top, rgba(245, 247, 250, 1) 60%, rgba(245, 247, 250, 0));
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 10px 14px;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.input-wrapper:focus-within {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 2px 16px rgba(99, 102, 241, 0.12);
+}
+
+.input-wrapper textarea {
+  flex: 1;
+  min-height: 24px;
   max-height: 160px;
   resize: none;
-  border: 0;
-  background: transparent;
-  color: var(--text-main);
+  border: none;
   outline: none;
-  padding: 8px 0 6px;
-  font-size: 16px;
+  background: transparent;
+  color: #1f2937;
+  font-size: 15px;
   line-height: 1.5;
-  letter-spacing: 0.01em;
   overflow-y: hidden;
-  transition: height 0.2s ease;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-textarea::placeholder {
-  color: #8a8c95;
+.input-wrapper textarea::-webkit-scrollbar {
+  display: none;
 }
 
-textarea:focus {
-  box-shadow: none;
+.input-wrapper textarea::placeholder {
+  color: #9ca3af;
 }
 
-textarea:disabled {
-  opacity: 0.72;
-  cursor: not-allowed;
-}
-
-.action-group {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  display: flex;
-  align-items: center;
-}
-
-.primary {
-  min-width: 48px;
-  height: 32px;
-  padding: 0 10px;
-  display: inline-grid;
+.send-button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
   place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
   color: #fff;
-  background: #1f2026;
-  box-shadow: none;
-  font-size: 12px;
-  font-weight: 800;
-  border: 0;
-  border-radius: 999px;
   cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
 
-.primary:hover {
-  background: #111216;
-  transform: translateY(-1px);
+.send-button:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
 
-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+.send-button:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
-@keyframes pulse {
-  0%,
-  80%,
-  100% {
-    opacity: 0.28;
+.send-button:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: default;
+  box-shadow: none;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.loading-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #fff;
+  animation: typing 1s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.input-footer {
+  text-align: center;
+  padding-top: 8px;
+}
+
+.input-footer span {
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+/* Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
     transform: translateY(0);
   }
+}
 
-  40% {
+@keyframes typing {
+  0%, 60%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
     opacity: 1;
-    transform: translateY(-2px);
+    transform: translateY(-3px);
   }
 }
 
-@media (max-width: 480px) {
-  .chat-page {
-    padding: 0 10px 0;
+@media (max-width: 520px) {
+  .message {
+    padding: 3px 14px;
   }
 
-  .composer-shell {
-    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  .welcome-screen {
+    padding: 32px 16px;
   }
 
-  .action-group {
-    right: 10px;
+  .prompt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .input-area {
+    padding: 8px 14px 14px;
   }
 }
 </style>

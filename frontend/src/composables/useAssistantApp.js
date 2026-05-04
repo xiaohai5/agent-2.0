@@ -5,7 +5,7 @@ import { createApiClient } from "../api/client";
 const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 const INTRO_KEY = "agent_intro_acknowledged";
 const INITIAL_SYSTEM_MESSAGE =
-  "叮咚，您的私人出行小助手已上线 (๑•̀ㅂ•́)و✧\n查车票、排路线、找酒店、挖美食都不在话下，有什么尽管吩咐。";
+  "叮咚，您的私人出行小助手已上线。\n查车票、排路线、找酒店、挖美食都可以交给我。";
 
 function getDefaultBaseUrl() {
   if (DEFAULT_BASE_URL) return DEFAULT_BASE_URL;
@@ -497,7 +497,6 @@ async function sendStream(payload) {
         chatStatus.value = "流式回复已完成。";
       },
     });
-    // 确保流式标志被关闭（防止 onDone 未触发的情况）
     streamMessage.streaming = false;
   } catch (error) {
     streamMessage.streaming = false;

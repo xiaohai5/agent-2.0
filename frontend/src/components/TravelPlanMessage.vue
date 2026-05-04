@@ -358,14 +358,14 @@ function handleImageError(event, image) {
 .travel-plan {
   width: 100%;
   display: grid;
-  gap: 14px;
+  gap: 12px;
   white-space: normal;
 }
 
 .section,
 .recommend-section {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .section-head {
@@ -377,8 +377,9 @@ function handleImageError(event, image) {
 
 .section-head h3 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2937;
 }
 
 .recommend-grid {
@@ -388,9 +389,9 @@ function handleImageError(event, image) {
 
 .recommend-card {
   display: grid;
-  gap: 8px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(221, 224, 230, 0.82);
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   min-width: 0;
   overflow: hidden;
 }
@@ -406,32 +407,32 @@ function handleImageError(event, image) {
 
 .recommend-copy {
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .recommend-title {
-  color: #21232b;
-  font-size: 18px;
-  line-height: 1.5;
-  font-weight: 900;
+  color: #1f2937;
+  font-size: 16px;
+  line-height: 1.45;
+  font-weight: 700;
   word-break: break-word;
 }
 
 .recommend-copy p {
   margin: 0;
-  color: #4f5565;
+  color: #6b7280;
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.55;
 }
 
 .image-grid {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .image-card {
   display: grid;
-  gap: 5px;
+  gap: 4px;
   color: inherit;
   text-decoration: none;
   width: min(100%, 280px);
@@ -440,25 +441,26 @@ function handleImageError(event, image) {
 
 .image-card img {
   width: 100%;
-  height: clamp(92px, 24vw, 150px);
-  max-height: 24vh;
+  height: clamp(86px, 24vw, 140px);
+  max-height: 22vh;
   display: block;
-  border-radius: 12px;
+  border-radius: 10px;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  background: rgba(239, 241, 245, 0.9);
+  background: #f3f4f6;
 }
 
 .image-card span {
-  color: #646b7a;
+  color: #6b7280;
   font-size: 12px;
 }
 
 .image-link {
   width: fit-content;
-  color: #4f67d8;
+  color: #6366f1;
   font-size: 12px;
   text-decoration: none;
+  font-weight: 600;
 }
 
 .plain-text {
@@ -468,15 +470,15 @@ function handleImageError(event, image) {
 
 @media (max-width: 480px) {
   .recommend-card {
-    padding: 10px 0;
+    padding: 8px 0;
   }
 
   .image-card img {
-    height: clamp(86px, 30vw, 128px);
+    height: clamp(80px, 30vw, 120px);
   }
 
   .recommend-title {
-    font-size: 17px;
+    font-size: 15px;
   }
 }
 </style>

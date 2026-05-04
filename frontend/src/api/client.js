@@ -16,8 +16,8 @@ async function parseResponse(response) {
   if (!response.ok) {
     const message =
       payload && typeof payload === "object"
-        ? payload.message || payload.detail || `请求失败：${response.status}`
-        : payload || `请求失败：${response.status}`;
+        ? payload.message || payload.detail || `请求失败，状态码 ${response.status}`
+        : payload || `请求失败，状态码 ${response.status}`;
     throw new Error(message);
   }
 
@@ -52,7 +52,7 @@ export function createApiClient(getBaseUrl, getToken) {
       return parseResponse(response);
     } catch (error) {
       if (error instanceof TypeError) {
-        throw new Error("无法连接到后端接口，请检查前端请求地址和 FastAPI 监听地址");
+        throw new Error("网络连接失败，请确认 FastAPI 服务已启动并且接口地址正确。");
       }
       throw error;
     }
@@ -76,7 +76,7 @@ export function createApiClient(getBaseUrl, getToken) {
 
     if (!response.ok || !response.body) {
       const message = await response.text();
-      throw new Error(message || `流式请求失败：${response.status}`);
+      throw new Error(message || `流式请求失败，状态码 ${response.status}`);
     }
 
     const reader = response.body.getReader();
@@ -105,7 +105,7 @@ export function createApiClient(getBaseUrl, getToken) {
             try {
               await reader.cancel();
             } catch {
-              // Ignore cancel errors after the final event has already been processed.
+              // The stream may already be closed after the final event.
             }
             return;
           }
@@ -113,7 +113,6 @@ export function createApiClient(getBaseUrl, getToken) {
         }
       }
     } finally {
-      // 确保 onDone 被调用，即使后端没有发送 done 事件
       if (!doneEventReceived && onDone) {
         await onDone({});
       }
