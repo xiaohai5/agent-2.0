@@ -41,8 +41,9 @@ export function createApiClient(getBaseUrl, getToken) {
   }
 
   async function request(path, options = {}) {
+    const url = joinUrl(getBaseUrl(), path);
     try {
-      const response = await fetch(joinUrl(getBaseUrl(), path), {
+      const response = await fetch(url, {
         ...options,
         headers: buildHeaders({
           json: options.json !== false,
@@ -52,27 +53,44 @@ export function createApiClient(getBaseUrl, getToken) {
       return parseResponse(response);
     } catch (error) {
       if (error instanceof TypeError) {
-        throw new Error("网络连接失败，请确认 FastAPI 服务已启动并且接口地址正确。");
+        throw new Error(`网络连接失败，请确认 FastAPI 服务已启动并且接口地址正确。当前请求：${url}`);
       }
       throw error;
     }
   }
 
   async function upload(path, formData) {
-    const response = await fetch(joinUrl(getBaseUrl(), path), {
-      method: "POST",
-      headers: buildHeaders({ json: false }),
-      body: formData,
-    });
-    return parseResponse(response);
+    const url = joinUrl(getBaseUrl(), path);
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: buildHeaders({ json: false }),
+        body: formData,
+      });
+      return parseResponse(response);
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(`网络连接失败，请确认 FastAPI 服务已启动并且接口地址正确。当前请求：${url}`);
+      }
+      throw error;
+    }
   }
 
   async function stream(path, payload, { onStatus, onChunk, onDone }) {
-    const response = await fetch(joinUrl(getBaseUrl(), path), {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify(payload),
-    });
+    const url = joinUrl(getBaseUrl(), path);
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(`网络连接失败，请确认 FastAPI 服务已启动并且接口地址正确。当前请求：${url}`);
+      }
+      throw error;
+    }
 
     if (!response.ok || !response.body) {
       const message = await response.text();

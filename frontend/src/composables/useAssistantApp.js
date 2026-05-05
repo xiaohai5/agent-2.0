@@ -14,6 +14,15 @@ function getDefaultBaseUrl() {
   return "http://localhost:8000";
 }
 
+function getInitialBaseUrl() {
+  const defaultBaseUrl = getDefaultBaseUrl();
+  if (DEFAULT_BASE_URL) {
+    localStorage.setItem("agent_base_url", defaultBaseUrl);
+    return defaultBaseUrl;
+  }
+  return localStorage.getItem("agent_base_url") || defaultBaseUrl;
+}
+
 function normalizeText(value, fallback = "") {
   if (value == null) return fallback;
   if (typeof value === "string") return value || fallback;
@@ -82,7 +91,7 @@ const menuOpen = ref(false);
 const introVisible = ref(localStorage.getItem(INTRO_KEY) !== "1");
 const thinking = ref(false);
 const showWelcomeCard = ref(true);
-const baseUrl = ref(localStorage.getItem("agent_base_url") || getDefaultBaseUrl());
+const baseUrl = ref(getInitialBaseUrl());
 const chatMode = ref("stream");
 const topK = ref(3);
 const scope = ref("当前登录用户文档");
