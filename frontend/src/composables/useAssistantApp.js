@@ -91,7 +91,19 @@ const menuOpen = ref(false);
 const introVisible = ref(localStorage.getItem(INTRO_KEY) !== "1");
 const thinking = ref(false);
 const showWelcomeCard = ref(true);
+const debugLog = reactive([]);
+function addDebug(msg) {
+  const time = new Date().toLocaleTimeString();
+  debugLog.push(`[${time}] ${msg}`);
+  console.log(`[Agent] ${msg}`);
+  if (debugLog.length > 50) debugLog.shift();
+}
+window.__agentDebug = addDebug;
+
 const baseUrl = ref(getInitialBaseUrl());
+addDebug(`baseUrl: ${baseUrl.value}`);
+addDebug(`token: ${state.token ? "已登录" : "未登录"}`);
+addDebug(`Capacitor: ${Capacitor.isNativePlatform() ? `原生平台 ${Capacitor.getPlatform()}` : "浏览器"}`);
 const chatMode = ref("stream");
 const topK = ref(3);
 const scope = ref("当前登录用户文档");
@@ -188,6 +200,7 @@ async function doLogin() {
   authStatus.value = "正在登录...";
   loading.auth = true;
   try {
+    addDebug(`doLogin: ${login.username} → ${baseUrl.value}/api/auth/login`);
     const data = await client.request("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
@@ -524,6 +537,7 @@ function clearChat() {
 }
 
 const instance = {
+  debugLog,
   state,
   profileData,
   menuOpen,
