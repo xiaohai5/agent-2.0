@@ -85,32 +85,22 @@ const profileData = reactive({
   username: localStorage.getItem("agent_profile_username") || localStorage.getItem("agent_username") || "",
   password: localStorage.getItem("agent_profile_password") || "",
   email: localStorage.getItem("agent_profile_email") || "",
+  avatarUrl: localStorage.getItem("agent_profile_avatar") || "",
 });
 
 const menuOpen = ref(false);
 const introVisible = ref(localStorage.getItem(INTRO_KEY) !== "1");
 const thinking = ref(false);
 const showWelcomeCard = ref(true);
-const debugLog = reactive([]);
-function addDebug(msg) {
-  const time = new Date().toLocaleTimeString();
-  debugLog.push(`[${time}] ${msg}`);
-  console.log(`[Agent] ${msg}`);
-  if (debugLog.length > 50) debugLog.shift();
-}
-window.__agentDebug = addDebug;
 
 const baseUrl = ref(getInitialBaseUrl());
-addDebug(`baseUrl: ${baseUrl.value}`);
-addDebug(`token: ${state.token ? "已登录" : "未登录"}`);
-addDebug(`Capacitor: ${Capacitor.isNativePlatform() ? `原生平台 ${Capacitor.getPlatform()}` : "浏览器"}`);
 const chatMode = ref("stream");
 const topK = ref(3);
 const scope = ref("当前登录用户文档");
 const question = ref("");
-const chatStatus = ref("准备就绪，登录后即可上传文档并开始问答。");
-const authStatus = ref(state.token ? `已恢复登录状态：${state.username || "当前用户"}` : "请先注册或登录账户。");
-const profile = ref("个人信息尚未刷新。");
+const chatStatus = ref("");
+const authStatus = ref(state.token ? "已登录" : "");
+const profile = ref("");
 const profileLoaded = ref(false);
 const docsLoaded = ref(false);
 const loading = reactive({
@@ -126,6 +116,9 @@ const register = reactive({ username: "", email: "", password: "" });
 const pwd = reactive({ username: state.username || "", old_password: "", new_password: "", confirm_password: "" });
 const docs = ref([]);
 const file = ref(null);
+const travelPois = ref([]);
+const savedPlans = ref([]);
+const activeRoutePlan = ref(null);
 const prompts = ["总结已上传文档", "根据文档回答问题", "给出下一步建议"];
 const conversationId = ref(createId("conv"));
 const messages = ref([createChatMessage("system", INITIAL_SYSTEM_MESSAGE, { conversation_id: conversationId.value })]);
@@ -163,6 +156,53 @@ function savePasswordText(password = "") {
   localStorage.setItem("agent_profile_password", profileData.password);
 }
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result || "");
+    reader.onerror = () => reject(reader.error || new Error("Failed to read image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to load image."));
+    image.src = src;
+  });
+}
+
+async function resizeAvatarDataUrl(dataUrl) {
+  const image = await loadImage(dataUrl);
+  const size = 320;
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) return dataUrl;
+
+  canvas.width = size;
+  canvas.height = size;
+  const sourceSize = Math.min(image.naturalWidth || image.width, image.naturalHeight || image.height);
+  const sourceX = ((image.naturalWidth || image.width) - sourceSize) / 2;
+  const sourceY = ((image.naturalHeight || image.height) - sourceSize) / 2;
+  context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+  return canvas.toDataURL("image/jpeg", 0.86);
+}
+
+async function setUserAvatarFromFile(file) {
+  if (!file || !file.type?.startsWith("image/")) return;
+
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    profileData.avatarUrl = await resizeAvatarDataUrl(dataUrl);
+    localStorage.setItem("agent_profile_avatar", profileData.avatarUrl);
+    profile.value = "头像已更新。";
+  } catch (error) {
+    profile.value = `头像更新失败：${error.message}`;
+  }
+}
+
 function appendMessage(role, content, metadata = {}) {
   const message = createChatMessage(role, content, {
     conversation_id: conversationId.value,
@@ -192,27 +232,22 @@ function acknowledgeIntro() {
 async function doLogin() {
   const username = login.username.trim();
   const password = login.password.trim();
-  if (!username || !password) {
-    authStatus.value = "请输入用户名和密码后再登录。";
-    return;
-  }
+  if (!username || !password) return;
 
-  authStatus.value = "正在登录...";
+  authStatus.value = "";
   loading.auth = true;
   try {
-    addDebug(`doLogin: ${login.username} → ${baseUrl.value}/api/auth/login`);
     const data = await client.request("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
     saveAuth(data?.access_token, data?.username);
     savePasswordText(password);
-    authStatus.value = `登录成功，当前用户：${normalizeText(data?.username, "未命名用户")}`;
-    chatStatus.value = "登录成功，正在进入对话页...";
+    authStatus.value = "";
     await getProfile();
     showWelcomeCard.value = false;
   } catch (error) {
-    authStatus.value = `登录失败：${error.message}`;
+    authStatus.value = error.message;
   } finally {
     loading.auth = false;
   }
@@ -229,12 +264,11 @@ async function doRegister() {
     login.username = register.username;
     login.password = register.password;
     savePasswordText(register.password);
-    authStatus.value = `注册成功，已自动登录：${normalizeText(data?.username, "未命名用户")}`;
-    chatStatus.value = "注册完成，正在进入对话页...";
+    authStatus.value = "";
     await getProfile();
     showWelcomeCard.value = false;
   } catch (error) {
-    authStatus.value = `注册失败：${error.message}`;
+    authStatus.value = error.message;
   } finally {
     loading.auth = false;
   }
@@ -251,10 +285,8 @@ async function getProfile() {
     profile.value = "个人信息已更新。";
     pwd.username = normalizeText(data?.username, pwd.username);
     profileLoaded.value = true;
-    authStatus.value = "个人资料获取成功。";
   } catch (error) {
     profile.value = `获取失败：${error.message}`;
-    authStatus.value = `个人资料获取失败：${error.message}`;
   } finally {
     loading.profile = false;
   }
@@ -273,9 +305,9 @@ async function changePassword() {
       body: JSON.stringify(pwd),
     });
     savePasswordText(pwd.new_password);
-    authStatus.value = normalizeText(data?.message, "密码修改成功。");
+    authStatus.value = "密码修改成功";
   } catch (error) {
-    authStatus.value = `密码修改失败：${error.message}`;
+    authStatus.value = error.message;
   } finally {
     loading.password = false;
   }
@@ -292,22 +324,20 @@ function logout() {
   profileData.username = "";
   profileData.password = "";
   profileData.email = "";
+  profileData.avatarUrl = "";
   localStorage.removeItem("agent_profile_name");
   localStorage.removeItem("agent_profile_username");
   localStorage.removeItem("agent_profile_password");
   localStorage.removeItem("agent_profile_email");
+  localStorage.removeItem("agent_profile_avatar");
   conversationId.value = createId("conv");
-  messages.value = [createChatMessage("system", "已退出登录。重新登录后可以继续上传文档和发起对话。", { conversation_id: conversationId.value })];
-  authStatus.value = "登录状态已清空。";
-  chatStatus.value = "已退出登录。";
+  messages.value = [createChatMessage("system", "已退出登录。", { conversation_id: conversationId.value })];
+  authStatus.value = "";
   closeMenu();
 }
 
 function pickFile(event) {
   file.value = event.target.files?.[0] || null;
-  if (file.value) {
-    chatStatus.value = `已选择文件：${normalizeText(file.value.name, "未命名文件")}`;
-  }
 }
 
 async function fetchDocs() {
@@ -319,32 +349,25 @@ async function fetchDocs() {
     });
     docs.value = Array.isArray(data) ? data.map(normalizeDoc) : [];
     docsLoaded.value = true;
-    chatStatus.value = `文档列表已刷新，共 ${docs.value.length} 个文件。`;
   } catch (error) {
     docs.value = [];
-    chatStatus.value = `文档列表获取失败：${error.message}`;
   } finally {
     loading.docs = false;
   }
 }
 
 async function uploadDoc() {
-  if (!file.value) {
-    chatStatus.value = "请先选择一个要上传的文件。";
-    return;
-  }
+  if (!file.value) return;
 
   loading.upload = true;
   const formData = new FormData();
   formData.append("file", file.value);
 
   try {
-    const data = await client.upload("/api/vector-store/upload", formData);
-    chatStatus.value = `文档上传成功：${normalizeText(data?.filename, file.value.name)}，状态：${normalizeText(data?.status, "已接收")}`;
+    await client.upload("/api/vector-store/upload", formData);
     file.value = null;
     await fetchDocs();
   } catch (error) {
-    chatStatus.value = `文档上传失败：${error.message}`;
   } finally {
     loading.upload = false;
   }
@@ -357,17 +380,13 @@ async function deleteDoc(name) {
       method: "DELETE",
       json: false,
     });
-    chatStatus.value = `文档已删除：${normalizeText(name, "未知文档")}`;
     await fetchDocs();
   } catch (error) {
-    chatStatus.value = `文档删除失败：${error.message}`;
     loading.docs = false;
   }
 }
 
-function vectorize() {
-  chatStatus.value = `当前检索范围：${scope.value}。上传完成后会自动建立可检索索引。`;
-}
+function vectorize() {}
 
 function normalizeHistory(history) {
   return (Array.isArray(history) ? history : [])
@@ -386,10 +405,7 @@ function getPreviousUserMessage(message) {
 
 async function submitFeedback(message, feedbackType) {
   if (!message || message.role !== "assistant" || message.streaming || message.feedbackLoading) return;
-  if (!state.token) {
-    chatStatus.value = "请先登录，再提交反馈。";
-    return;
-  }
+  if (!state.token) return;
 
   const userMessage = getPreviousUserMessage(message);
   const aiMessage = normalizeText(message.content, "");
@@ -412,9 +428,7 @@ async function submitFeedback(message, feedbackType) {
       }),
     });
     message.feedback_type = data?.feedback_type || feedbackType;
-    chatStatus.value = "反馈已保存。";
-  } catch (error) {
-    chatStatus.value = `反馈保存失败：${error.message}`;
+  } catch (_error) {
   } finally {
     message.feedbackLoading = false;
   }
@@ -436,21 +450,14 @@ async function typewriterMessage(message, text) {
 
 async function sendChat() {
   const currentQuestion = question.value.trim();
-  if (!currentQuestion) {
-    chatStatus.value = "请输入问题后再发送。";
-    return;
-  }
-  if (!state.token) {
-    chatStatus.value = "请先登录，再发起对话。";
-    return;
-  }
+  if (!currentQuestion) return;
+  if (!state.token) return;
 
   dismissWelcomeCard();
   loading.chat = true;
   thinking.value = chatMode.value !== "stream";
   appendMessage("user", currentQuestion);
   question.value = "";
-  chatStatus.value = "AI 正在整理上下文并生成回复...";
 
   const payload = {
     question: currentQuestion,
@@ -468,6 +475,7 @@ async function sendChat() {
         body: JSON.stringify(payload),
       });
       state.history = normalizeHistory(data?.history);
+      travelPois.value = data?.pois || [];
       appendMessage("assistant", data?.answer || "后端未返回内容。", {
         conversation_id: data?.conversation_id || conversationId.value,
         user_message: currentQuestion,
@@ -476,14 +484,12 @@ async function sendChat() {
         tool_calls: data?.tool_calls || null,
         answer_source: data?.answer_source || null,
       });
-      chatStatus.value = "本轮对话已完成。";
     }
   } catch (error) {
     appendMessage("assistant", `请求失败：${error.message}`, {
       user_message: currentQuestion,
       route: "chat",
     });
-    chatStatus.value = `对话失败：${error.message}`;
   } finally {
     thinking.value = false;
     loading.chat = false;
@@ -500,9 +506,7 @@ async function sendStream(payload) {
 
   try {
     await client.stream("/api/chat/completion/stream", payload, {
-      onStatus(message) {
-        chatStatus.value = `处理中：${normalizeText(message, "")}`;
-      },
+      onStatus(_message) {},
       onChunk(content) {
         streamMessage.content += normalizeText(content, "");
       },
@@ -510,13 +514,13 @@ async function sendStream(payload) {
         const answer = normalizeText(data?.answer, streamMessage.content || "后端未返回内容。");
         await typewriterMessage(streamMessage, answer);
         state.history = normalizeHistory(data?.history);
+        travelPois.value = data?.pois || [];
         streamMessage.conversation_id = data?.conversation_id || streamMessage.conversation_id;
         streamMessage.route = data?.route || "chat";
         streamMessage.model = data?.model || null;
         streamMessage.tool_calls = data?.tool_calls || null;
         streamMessage.answer_source = data?.answer_source || null;
         streamMessage.streaming = false;
-        chatStatus.value = "流式回复已完成。";
       },
     });
     streamMessage.streaming = false;
@@ -532,12 +536,278 @@ async function sendStream(payload) {
 function clearChat() {
   state.history = [];
   conversationId.value = createId("conv");
-  messages.value = [createChatMessage("system", "本地对话历史已清空。新的问题会从空上下文开始。", { conversation_id: conversationId.value })];
-  chatStatus.value = "对话历史已清空。";
+  messages.value = [createChatMessage("system", "对话历史已清空。", { conversation_id: conversationId.value })];
+}
+
+// ── Travel Plan ──
+
+const TRANSPORT_KEYS = ["地铁", "公交", "火车", "高铁", "动车", "飞机", "航班", "打车", "出租", "网约车", "步行", "骑行", "开车", "自驾", "大巴", "客运", "轮渡", "船", "磁悬浮", "机场大巴", "摆渡车", "班车"];
+const DINING_KEYS = ["餐厅", "饭店", "美食", "小吃", "食堂", "饭馆", "火锅", "烧烤", "海鲜", "面馆", "快餐", "咖啡", "奶茶", "早餐", "午餐", "晚餐", "吃饭", "用餐", "就餐", "品尝", "美食街", "夜市", "大排档", "自助餐"];
+const HOTEL_KEYS = ["酒店", "宾馆", "旅馆", "民宿", "客栈", "入住", "住宿", "青旅", "度假村", "公寓", "下榻"];
+const ATTRACTION_KEYS = ["景点", "公园", "广场", "博物馆", "长城", "故宫", "寺庙", "塔", "湖", "山", "游览", "参观", "观光", "拍照", "打卡", "逛街", "购物", "老街", "胡同", "园林", "遗址", "演出", "表演"];
+
+function detectItemType(text) {
+  const t = text || "";
+  if (HOTEL_KEYS.some((k) => t.includes(k))) return "hotel";
+  if (TRANSPORT_KEYS.some((k) => t.includes(k))) return "transport";
+  if (DINING_KEYS.some((k) => t.includes(k))) return "dining";
+  if (ATTRACTION_KEYS.some((k) => t.includes(k))) return "attraction";
+  return "general";
+}
+
+function stripMarkdown(line) {
+  return line
+    .replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}\u{200D}\u{20E3}\u{2702}-\u{27B0}\u{2B50}\u{2934}-\u{2935}\u{25AA}-\u{25FE}\u{2B05}-\u{2B07}\u{2B1B}-\u{2B1C}\u{3030}\u{303D}\u{3297}\u{3299}]\s*/u, "")
+    .replace(/^#{1,4}\s*/, "")
+    .replace(/^[-*•]\s*/, "")
+    .replace(/^\d+[.、]\s*/, "")
+    .replace(/^\*\*/, "")
+    .replace(/\*\*$/, "")
+    .trim();
+}
+
+function parseTravelPlanFromText(rawText) {
+  const text = String(rawText || "");
+  const lines = text.split(/\r?\n/);
+
+  const days = [];
+  let currentDay = null;
+  let overviewLines = [];
+  let inOverview = true;
+
+  const dayHeaderRe = /^第\s*([一二三四五六七八九十\d]+)\s*天\s*(?:[：:]\s*(.*))?/;
+  const dayHeaderRe2 = /^Day\s*(\d+)\s*[：:]\s*(.*)/i;
+  const timeRe = /^(\d{1,2}:\d{2})(?:\s*[-–—]\s*(\d{1,2}:\d{2}))?\s*(.*)/;
+  const roughTimeRe = /^(早晨|上午|中午|下午|傍晚|晚上|夜间|半夜|凌晨)\s*[：:]?\s*(.*)/;
+const activityRe = /^(午餐建议|晚餐建议|早餐建议|住宿|交通方式|购物推荐|娱乐推荐|夜宵建议)\s*[：:]?\s*(.*)/;
+
+  function flushDay() {
+    if (!currentDay) return;
+    if (currentDay.items.length === 0) {
+      const note = currentDay.notes.join(" ").trim();
+      if (note) {
+        currentDay.items.push({ time: "", type: "general", description: note });
+      }
+    }
+    days.push(currentDay);
+    currentDay = null;
+  }
+
+  function startDay(dayNum, title) {
+    flushDay();
+    currentDay = { day: dayNum, title: title || `第${dayNum}天`, items: [], notes: [] };
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const cleanLine = stripMarkdown(line);
+
+    // Skip header/footer sections
+    if (/^(?:#{1,4}\s*)?(?:行程总览|推荐车次|出行提醒|温馨提示|费用预算|行程预算|注意事项|小贴士|旅行小贴士)/.test(line) || /^(?:#{1,4}\s*)?(?:行程总览|推荐车次|出行提醒|温馨提示|费用预算|行程预算|注意事项|小贴士|旅行小贴士)/.test(cleanLine)) {
+      const isOverview = /行程总览/.test(cleanLine) || /推荐车次/.test(cleanLine);
+      inOverview = isOverview;
+      // 出行提醒之后的内容不再加入行程
+      if (/出行提醒|温馨提示|注意事项|小贴士|旅行小贴士/.test(cleanLine)) {
+        inOverview = true;
+        continue;
+      }
+      if (!isOverview) continue;
+      overviewLines.push(cleanLine);
+      continue;
+    }
+
+    const dayMatch = cleanLine.match(dayHeaderRe) || cleanLine.match(dayHeaderRe2);
+    if (dayMatch) {
+      inOverview = false;
+      const dayNum = parseInt(dayMatch[1]) || parseChineseNumber(dayMatch[1]) || (days.length + 1);
+      const title = dayMatch[2] || `第${dayNum}天`;
+      startDay(dayNum, title);
+      continue;
+    }
+
+    if (inOverview) {
+      overviewLines.push(cleanLine);
+      continue;
+    }
+
+    if (!currentDay) {
+      startDay(days.length + 1, `第${days.length + 1}天`);
+    }
+
+    const timeMatch = cleanLine.match(timeRe);
+    if (timeMatch) {
+      const time = timeMatch[1];
+      const endTime = timeMatch[2] || "";
+      const desc = (timeMatch[3] || "").trim().replace(/^[：:]\s*/, "");
+      const type = detectItemType(desc);
+      currentDay.items.push({ time, endTime, type, description: desc });
+      continue;
+    }
+
+    const roughMatch = cleanLine.match(roughTimeRe);
+    if (roughMatch) {
+      const time = roughMatch[1];
+      const desc = (roughMatch[2] || "").trim().replace(/^[：:]\s*/, "");
+      const type = detectItemType(desc);
+      currentDay.items.push({ time, endTime: "", type, description: desc });
+      continue;
+    }
+
+    const actMatch = cleanLine.match(activityRe);
+    if (actMatch) {
+      const time = actMatch[1];
+      const desc = (actMatch[2] || "").trim().replace(/^[：:]\s*/, "");
+      const type = detectItemType(time + desc);
+      currentDay.items.push({ time, endTime: "", type, description: desc });
+      continue;
+    }
+
+    // Generic Label：Value pattern (e.g., "景点间交通：地铁2号线")
+    const genericMatch = cleanLine.match(/^(.{2,12}?)[：:]\s*(.+)$/);
+    if (genericMatch && genericMatch[2].length >= 2) {
+      const label = genericMatch[1];
+      const value = genericMatch[2];
+      const type = detectItemType(label + value);
+      currentDay.items.push({ time: label, endTime: "", type, description: value });
+      continue;
+    }
+
+    currentDay.notes.push(cleanLine);
+  }
+
+  flushDay();
+
+  let title = "出行计划";
+  for (const line of overviewLines) {
+    const m = line.match(/^(.{1,30})(?:：|:)\s*(.+)/);
+    if (m && m[1].length <= 12) {
+      title = m[1].replace(/^[🍜🏨🎯🚗✈️📍🗺️]\s*/, "");
+      break;
+    }
+  }
+  if (title === "出行计划" && overviewLines.length > 0) {
+    title = overviewLines[0].replace(/^[🍜🏨🎯🚗✈️📍🗺️]\s*/, "").slice(0, 40);
+  }
+
+  return { title, days, overview: overviewLines.join("\n") };
+}
+
+function parseChineseNumber(str) {
+  const map = { "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10 };
+  if (str === "十") return 10;
+  if (str.length === 2 && str[0] === "十") return 10 + (map[str[1]] || 0);
+  if (str.length === 2 && str[1] === "十") return (map[str[0]] || 1) * 10;
+  return map[str] || null;
+}
+function isTravelPlanMessage(content) {
+  const text = normalizeText(content, "");
+  if (!text || text.length < 30) return false;
+  const hasDayStructure = /第\s*[一二三四五六七八九十\d]+\s*天/.test(text) || /Day\s*\d+/i.test(text);
+  const hasTripKeywords = /行程|旅行|旅游|出游|攻略|路线/.test(text);
+  const hasTimeSchedule = /\d{1,2}:\d{2}/.test(text);
+  return hasDayStructure || (hasTripKeywords && hasTimeSchedule);
+}
+
+function setActiveRoute(plan) {
+  activeRoutePlan.value = plan ? { ...plan } : null;
+}
+
+async function loadRoutes(planId, days) {
+  if (!state.token) return null;
+  const path = days && days.length
+    ? `/api/plans/${planId}/routes?days=${days.join(",")}`
+    : `/api/plans/${planId}/routes`;
+  const data = await client.request(path, { method: "GET" });
+  return data || null;
+}
+
+async function confirmPlan(message) {
+  if (!message) return null;
+  const rawText = normalizeText(message.content, "");
+  if (!rawText) return null;
+
+  const plan = parseTravelPlanFromText(rawText);
+  if (!plan.days.length) return null;
+
+  // Persist to backend
+  if (state.token) {
+    try {
+      const data = await client.request("/api/plans", {
+        method: "POST",
+        body: JSON.stringify({
+          title: plan.title,
+          days: plan.days,
+          overview: plan.overview,
+          source_message_id: message.id,
+        }),
+      });
+      const saved = data;
+      if (saved) {
+        const newPlan = {
+          id: saved.id,
+          title: saved.title,
+          createdAt: saved.created_at || saved.createdAt || new Date().toISOString(),
+          sourceMessageId: saved.source_message_id || message.id,
+          days: saved.plan_data?.days || plan.days,
+          overview: saved.plan_data?.overview || saved.overview || plan.overview,
+        };
+        savedPlans.value = [newPlan, ...savedPlans.value];
+        return newPlan;
+      }
+    } catch (_) {
+      // Fall back to local-only if API fails
+    }
+  }
+
+  // Local fallback
+  const newPlan = {
+    id: createId("plan"),
+    title: plan.title,
+    createdAt: new Date().toISOString(),
+    sourceMessageId: message.id,
+    days: plan.days,
+    overview: plan.overview,
+  };
+  savedPlans.value = [newPlan, ...savedPlans.value];
+  return newPlan;
+}
+
+async function fetchPlans() {
+  if (!state.token) return;
+  try {
+    const data = await client.request("/api/plans", { method: "GET" });
+    const plans = data?.plans || [];
+    savedPlans.value = plans.map((p) => ({
+      id: p.id,
+      title: p.title,
+      createdAt: p.created_at || p.createdAt || "",
+      sourceMessageId: p.source_message_id || "",
+      days: p.plan_data?.days || [],
+      overview: p.plan_data?.overview || p.overview || "",
+    }));
+  } catch (_) {
+    // Keep local plans if fetch fails
+  }
+}
+
+async function removePlanApi(planId) {
+  if (activeRoutePlan.value?.id === planId) activeRoutePlan.value = null;
+
+  // Remove from backend
+  if (state.token) {
+    try {
+      await client.request(`/api/plans/${planId}`, { method: "DELETE" });
+    } catch (_) {}
+  }
+
+  // Remove from local state
+  const idx = savedPlans.value.findIndex((p) => p.id === planId);
+  if (idx >= 0) savedPlans.value.splice(idx, 1);
 }
 
 const instance = {
-  debugLog,
   state,
   profileData,
   menuOpen,
@@ -559,6 +829,9 @@ const instance = {
   register,
   pwd,
   docs,
+  travelPois,
+  savedPlans,
+  activeRoutePlan,
   prompts,
   conversationId,
   messages,
@@ -573,6 +846,7 @@ const instance = {
   doRegister,
   getProfile,
   changePassword,
+  setUserAvatarFromFile,
   logout,
   pickFile,
   fetchDocs,
@@ -582,6 +856,12 @@ const instance = {
   sendChat,
   submitFeedback,
   clearChat,
+  isTravelPlanMessage,
+  confirmPlan,
+  fetchPlans,
+  removePlanApi,
+  setActiveRoute,
+  loadRoutes,
 };
 
 export function useAssistantApp() {
