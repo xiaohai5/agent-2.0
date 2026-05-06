@@ -60,6 +60,7 @@ class RouteDayData(BaseModel):
     color: str
     polyline: list[list[float]] = Field(default_factory=list)
     markers: list[RouteMarker] = Field(default_factory=list)
+    chunked: bool = False
 
 
 class RoutePlanData(BaseModel):
