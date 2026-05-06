@@ -178,6 +178,8 @@ def _build_markers(
         elif i == 0:
             marker_type = "start_end" if same_start_end else "start"
         elif i == len(coords) - 1:
+            if same_start_end:
+                continue  # skip duplicate marker at end of loop trip
             marker_type = "end"
         else:
             marker_type = "waypoint"

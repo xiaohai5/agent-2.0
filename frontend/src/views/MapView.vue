@@ -65,7 +65,7 @@ const AMAP_JS_KEY = import.meta.env.VITE_AMAP_JS_KEY || "";
 let map = null;
 let geocoder = null;
 let currentMarker = null;
-let travelMarkers = [];
+let travelMarkers = ref([]);
 let routePlanMarkers = [];
 let routePlanPolylines = [];
 let myLocation = null;
@@ -178,8 +178,8 @@ function createPoiMarker(lng, lat, poi, category) {
 }
 
 function clearTravelMarkers() {
-  travelMarkers.forEach((m) => map.remove(m));
-  travelMarkers = [];
+  travelMarkers.value.forEach((m) => map.remove(m));
+  travelMarkers.value = [];
 }
 
 function clearRoutePlanMarkers() {
@@ -419,7 +419,7 @@ function renderTravelPois() {
     markers.push(marker);
   });
 
-  travelMarkers = markers;
+  travelMarkers.value = markers;
 
   if (markers.length) {
     map.setFitView(markers, true, [60, 60, 60, 60]);

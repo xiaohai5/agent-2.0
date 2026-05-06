@@ -50,6 +50,7 @@ async def update_plan(
     plan = await saved_plan_service.update_plan(db=db, plan_id=plan_id, user_id=user_id, payload=payload)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="计划不存在")
+    await route_service._invalidate_cache(plan_id)
     return ApiResponse(message="计划已更新", data=SavedPlanData(**plan))
 
 
@@ -90,4 +91,5 @@ async def delete_plan(
     ok = await saved_plan_service.delete_plan(db=db, plan_id=plan_id, user_id=user_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="计划不存在")
+    await route_service._invalidate_cache(plan_id)
     return ApiResponse(message="计划已删除", data=None)
