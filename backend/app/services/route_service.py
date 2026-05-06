@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+logger = logging.getLogger(__name__)
 
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,13 +111,14 @@ class RouteService:
             coords = _collect_coordinates(items)
             color = DAY_COLORS[i % len(DAY_COLORS)]
 
+            markers = _build_markers(coords)
             if len(coords) < 2:
                 # Single location: markers only, no polyline
-                markers = _build_markers(coords, day.get("day", i + 1))
                 polyline = []
+                chunked = False
             else:
-                markers = _build_markers(coords, day.get("day", i + 1))
                 polyline = await _calculate_day_polyline(coords)
+                chunked = len(coords) > 18
 
             result_days.append({
                 "day": day.get("day", i + 1),
@@ -122,6 +126,7 @@ class RouteService:
                 "color": color,
                 "polyline": polyline,
                 "markers": markers,
+                "chunked": chunked,
             })
 
         result = {
@@ -154,7 +159,7 @@ def _collect_coordinates(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _build_markers(
-    coords: list[dict[str, Any]], day_num: int
+    coords: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Build marker list with start/end/waypoint/start_end types."""
     if not coords:
@@ -193,11 +198,56 @@ async def _calculate_day_polyline(
     """Calculate driving route for a day using waypoints.
 
     First coord = origin, last = destination, middle = waypoints.
-    Single AMap API call produces a continuous polyline.
+    If more than 18 total coordinates, the waypoint list is split into
+    overlapping chunks (each chunk < 18 total points, overlapping by 1
+    coordinate) and multiple AMap API calls are made.
     """
     if len(coords) < 2:
         return []
 
+    # The AMap API supports at most 16 waypoints (18 total points:
+    # origin + 16 waypoints + destination).  If our list fits in one
+    # call, take the fast path.
+    if len(coords) <= 18:
+        return await _call_amap_driving(coords)
+
+    # ---- Chunked request path -------------------------------------------
+    # Each chunk is up to 18 points, overlapping by 1 with the next chunk
+    # to maintain path continuity.
+    chunk_size = 18
+    overlap = 1
+    chunks: list[list[dict[str, Any]]] = []
+    start = 0
+    while start < len(coords):
+        end = min(start + chunk_size, len(coords))
+        chunks.append(coords[start:end])
+        start += chunk_size - overlap
+
+    # Fetch all chunks concurrently
+    chunk_polylines = await asyncio.gather(
+        *[_call_amap_driving(chunk) for chunk in chunks],
+    )
+
+    # Stitch polylines together, discarding the overlapping tail of each
+    # chunk (except the last chunk) to avoid duplicating points.
+    full_polyline: list[list[float]] = []
+    for idx, pl in enumerate(chunk_polylines):
+        if pl:
+            if idx > 0:
+                # The previous chunk's final point is the same as this
+                # chunk's first point -- skip the first point of this chunk
+                # to avoid duplication.
+                full_polyline.extend(pl[1:])
+            else:
+                full_polyline.extend(pl)
+
+    return full_polyline
+
+
+async def _call_amap_driving(
+    coords: list[dict[str, Any]],
+) -> list[list[float]]:
+    """Make a single AMap driving API call for *coords* (max 18 points)."""
     origin = f"{coords[0]['lng']},{coords[0]['lat']}"
     destination = f"{coords[-1]['lng']},{coords[-1]['lat']}"
 
@@ -209,7 +259,6 @@ async def _calculate_day_polyline(
         "strategy": "0",
     }
 
-    # Middle points as waypoints
     if len(coords) > 2:
         waypoints = ";".join(
             f"{c['lng']},{c['lat']}" for c in coords[1:-1]
@@ -219,10 +268,22 @@ async def _calculate_day_polyline(
     url = f"{AMAP_REST_URL}/direction/driving?{urlencode(params)}"
     try:
         data = await _fetch_json_async(url)
-    except (HTTPError, URLError, OSError, TimeoutError):
+    except (HTTPError, URLError, OSError, TimeoutError) as exc:
+        logger.warning(
+            "AMap driving API HTTP error (total points %d): %s",
+            len(coords),
+            exc,
+        )
         return []
 
     if data.get("status") != "1":
+        logger.warning(
+            "AMap driving API returned non-OK status (total points %d): "
+            "status=%s info=%s",
+            len(coords),
+            data.get("status"),
+            data.get("info", "N/A"),
+        )
         return []
 
     polyline: list[list[float]] = []
@@ -237,7 +298,12 @@ async def _calculate_day_polyline(
                         if len(parts) == 2:
                             polyline.append([float(parts[0]), float(parts[1])])
             break  # Only use first path
-    except (KeyError, ValueError, TypeError):
+    except (KeyError, ValueError, TypeError) as exc:
+        logger.warning(
+            "Failed to parse AMap driving response (total points %d): %s",
+            len(coords),
+            exc,
+        )
         return []
 
     return polyline
