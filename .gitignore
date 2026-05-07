@@ -20,3 +20,4 @@ frontend/dist/
 frontend/android/.gradle/
 frontend/android/.idea/
 frontend/android/**/build/
+*.apk
