@@ -75,8 +75,8 @@ class DualAgentWorkflow:
         """节点 2: Dialog Agent 生成回复"""
         dialog_state = state["dialog_state"]
 
-        # 生成回复
-        response = await self.dialog_agent.generate_response(
+        # 生成回复 - 现在返回 (text, poi_data)
+        response, poi_data = await self.dialog_agent.generate_response(
             current_input=dialog_state["current_input"],
             memory_context=dialog_state["memory_context"],
             user_id=state["user_id"],
@@ -88,6 +88,7 @@ class DualAgentWorkflow:
         return {
             "dialog_state": dialog_state,
             "final_answer": response,
+            "pois": poi_data,
         }
 
     async def _update_memory_node(self, state: CombinedState) -> dict[str, Any]:
@@ -132,6 +133,7 @@ class DualAgentWorkflow:
                 current_tool_calls=[],
             ),
             final_answer="",
+            pois=[],
             tool_agents_ready=False,
             status="processing",
         )
@@ -139,7 +141,7 @@ class DualAgentWorkflow:
         # 执行工作流
         result = await self.graph.ainvoke(initial_state)
 
-        return result["final_answer"], result["memory_state"]
+        return result["final_answer"], result["memory_state"], result.get("pois", [])
 
     async def run_stream(
         self,
@@ -165,12 +167,14 @@ class DualAgentWorkflow:
                 current_tool_calls=[],
             ),
             final_answer="",
+            pois=[],
             tool_agents_ready=False,
             status="processing",
         )
 
         # 执行工作流（流式）
         final_answer = ""
+        final_pois = []
         final_memory = None
 
         async for event in self.graph.astream(initial_state):
@@ -179,6 +183,8 @@ class DualAgentWorkflow:
                 node_output = event["generate_response"]
                 if "final_answer" in node_output:
                     final_answer = node_output["final_answer"]
+                if "pois" in node_output:
+                    final_pois = node_output["pois"]
 
             # 检查是否完成
             if "update_memory" in event:
@@ -187,6 +193,7 @@ class DualAgentWorkflow:
                 yield {
                     "type": "done",
                     "answer": final_answer,
+                    "pois": final_pois,
                     "memory_state": final_memory,
                     "status": node_output["status"],
                 }

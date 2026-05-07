@@ -1,15 +1,10 @@
 <template>
   <section class="ios-page ios-page-stack ios-scroll">
-    <PagePanel title="安全设置" description="更新登录密码，并调整本轮问答的检索数量。" eyebrow="Security">
-      <form class="form-stack" @submit.prevent="app.changePassword">
-        <div class="field-grid">
-          <IosField label="用户名">
-            <input v-model="app.pwd.username" placeholder="请输入用户名" />
-          </IosField>
-          <IosField label="Top K">
-            <input v-model="app.topK.value" type="number" min="1" max="10" />
-          </IosField>
-        </div>
+    <PagePanel title="安全设置" description="更新你的登录密码。" eyebrow="Security">
+      <form class="form-stack" @submit.prevent="handleChangePassword">
+        <IosField label="用户名">
+          <input v-model="app.pwd.username" placeholder="请输入用户名" />
+        </IosField>
 
         <IosField label="旧密码">
           <input v-model="app.pwd.old_password" type="password" autocomplete="current-password" placeholder="请输入当前密码" />
@@ -25,20 +20,34 @@
           {{ app.loading.password ? "提交中..." : "提交修改" }}
         </IosButton>
 
-        <div class="ios-status">{{ app.authStatus.value }}</div>
+        <p v-if="passwordMsg" class="form-msg" :class="{ 'is-error': passwordError }">{{ passwordMsg }}</p>
       </form>
     </PagePanel>
   </section>
 </template>
 
 <script setup>
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import IosButton from "../components/IosButton.vue";
 import IosField from "../components/IosField.vue";
 import PagePanel from "../components/PagePanel.vue";
 import { useAssistantApp } from "../composables/useAssistantApp";
 
 const app = useAssistantApp();
+const passwordMsg = ref("");
+const passwordError = ref(false);
+
+async function handleChangePassword() {
+  passwordMsg.value = "";
+  passwordError.value = false;
+  await app.changePassword();
+  if (app.authStatus.value === "密码修改成功") {
+    passwordMsg.value = "密码修改成功";
+  } else if (app.authStatus.value) {
+    passwordMsg.value = app.authStatus.value;
+    passwordError.value = true;
+  }
+}
 
 onMounted(() => {
   if (app.state.username && !app.pwd.username) {
@@ -48,24 +57,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.form-stack {
-  display: grid;
-  gap: 13px;
+.form-stack { display: grid; gap: 15px; }
+.submit-btn { width: 100%; }
+.form-msg {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--green);
 }
-
-.field-grid {
-  display: grid;
-  grid-template-columns: 1fr 110px;
-  gap: 12px;
-}
-
-.submit-btn {
-  width: 100%;
-}
-
-@media (max-width: 420px) {
-  .field-grid {
-    grid-template-columns: 1fr;
-  }
-}
+.form-msg.is-error { color: var(--red); }
 </style>

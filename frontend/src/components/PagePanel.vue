@@ -13,17 +13,8 @@
 
 <script setup>
 defineProps({
-  title: {
-    type: String,
-    default: "",
-  },
-  description: {
-    type: String,
-    default: "",
-  },
-  eyebrow: {
-    type: String,
-    default: "",
-  },
+  title: { type: String, default: "" },
+  description: { type: String, default: "" },
+  eyebrow: { type: String, default: "" },
 });
 </script>

@@ -26,3 +26,4 @@ class ChatData(BaseModel):
     model: str | None = None
     tool_calls: list | dict | None = None
     answer_source: list | dict | str | None = None
+    pois: list[dict] = Field(default_factory=list)

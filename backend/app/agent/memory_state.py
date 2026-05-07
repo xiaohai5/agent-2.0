@@ -84,5 +84,6 @@ class CombinedState(TypedDict):
     memory_state: MemoryState
     dialog_state: DialogState
     final_answer: str
+    pois: list[dict[str, Any]]
     tool_agents_ready: bool
     status: str

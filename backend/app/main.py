@@ -17,6 +17,8 @@ from fastapi.responses import JSONResponse
 from backend.app.api.routes.auth import router as auth_router
 from backend.app.api.routes.chat import router as chat_router
 from backend.app.api.routes.feedback import router as feedback_router
+from backend.app.api.routes.map import router as map_router
+from backend.app.api.routes.saved_plan import router as plan_router
 from backend.app.api.routes.vector_store import router as vector_router
 from backend.app.core.database import init_db
 
@@ -53,6 +55,8 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(vector_router, prefix="/api/vector-store", tags=["vector-store"])
 app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
 app.include_router(feedback_router, prefix="/api/feedback", tags=["feedback"])
+app.include_router(map_router, prefix="/api/map", tags=["map"])
+app.include_router(plan_router, prefix="/api/plans", tags=["plans"])
 
 
 @app.get("/")

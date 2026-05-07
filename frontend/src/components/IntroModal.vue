@@ -1,16 +1,22 @@
 <template>
   <teleport to="body">
-    <transition name="sheet">
+    <transition name="alert">
       <div v-if="open" class="mask" @click.self="$emit('confirm')">
-        <section class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="intro-title">
-          <div class="grabber"></div>
-          <span class="ios-pill">首次使用</span>
-          <h2 id="intro-title">欢迎进入出行文档助手</h2>
-          <p>右上角头像可以打开账户菜单；聊天、文档、个人资料通过底部标签快速切换。</p>
-          <p>确认后不会再次自动弹出，你仍然可以正常登录、上传文档并继续对话。</p>
-          <div class="actions">
-            <button class="ghost" type="button" @click="$emit('confirm')">稍后再看</button>
-            <button class="primary" type="button" @click="$emit('confirm')">开始使用</button>
+        <section class="alert-card" role="dialog" aria-modal="true" aria-labelledby="intro-title">
+          <div class="alert-icon-wrap">
+            <div class="alert-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l3.5 2"/>
+              </svg>
+            </div>
+            <span class="alert-sparkle a1">✦</span>
+            <span class="alert-sparkle a2">✧</span>
+          </div>
+          <h2 id="intro-title">出行文档助手</h2>
+          <p>查车票、排路线、找酒店、挖美食，你的随身出行管家。</p>
+          <div class="alert-actions">
+            <button class="alert-btn primary" type="button" @click="$emit('confirm')">开始使用</button>
           </div>
         </section>
       </div>
@@ -27,97 +33,94 @@ defineEmits(["confirm"]);
 .mask {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: end center;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(61, 48, 85, 0.30);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
   z-index: 40;
 }
 
-.sheet-card {
-  width: min(100%, 420px);
-  padding: 10px 22px 22px;
-  border-radius: 22px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: #fff;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+.alert-card {
+  width: min(100%, 300px);
+  padding: 32px 24px 24px;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(61, 48, 85, 0.20), 0 0 40px rgba(126, 200, 227, 0.12);
+  text-align: center;
 }
 
-.grabber {
-  width: 36px;
-  height: 4px;
-  margin: 0 auto 16px;
-  border-radius: 999px;
-  background: #d1d5db;
+.alert-icon-wrap {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 20px;
 }
+
+.alert-icon {
+  width: 68px; height: 68px;
+  display: grid; place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--sky), var(--ocean), var(--azure));
+  color: #ffffff;
+  box-shadow: 0 8px 28px rgba(126, 200, 227, 0.35);
+  animation: bounce-in 0.55s var(--ease-bounce) both;
+  animation-delay: 0.08s;
+}
+
+.alert-sparkle {
+  position: absolute;
+  font-size: 15px;
+  color: var(--ocean);
+  animation: sparkle-twinkle 2s ease-in-out infinite;
+  pointer-events: none;
+}
+.alert-sparkle.a1 { top: -6px; right: -8px; animation-delay: 0s; }
+.alert-sparkle.a2 { bottom: -4px; left: -8px; animation-delay: 0.8s; color: var(--sky); }
 
 h2 {
-  margin: 12px 0 6px;
-  font-size: 22px;
-  line-height: 1.2;
-  letter-spacing: -0.2px;
-  color: #1c1c1e;
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.3px;
+  color: var(--label);
 }
 
 p {
-  margin: 0 0 8px;
-  color: #8e8e93;
+  margin: 0 0 24px;
+  color: var(--label-2);
   font-size: 14px;
-  line-height: 1.65;
+  line-height: 1.55;
 }
 
-.actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 16px;
-}
+.alert-actions { display: flex; justify-content: center; }
 
-.ghost,
-.primary {
-  min-height: 44px;
+.alert-btn {
+  min-height: 46px;
+  padding: 0 36px;
   border-radius: 14px;
+  font-size: 16px;
   font-weight: 700;
   cursor: pointer;
   border: none;
-  transition: transform 0.15s cubic-bezier(0.34, 1.2, 0.64, 1), background 0.15s ease;
+  transition: transform 0.18s var(--ease-spring), box-shadow 0.2s ease;
+}
+.alert-btn:active { transform: scale(0.96); }
+
+.alert-btn.primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--sky), var(--ocean));
+  box-shadow: 0 4px 16px rgba(126, 200, 227, 0.35);
 }
 
-.ghost:active,
-.primary:active {
-  transform: scale(0.97);
-}
-
-.ghost {
-  color: #1c1c1e;
-  background: #f5f5f7;
-}
-
-.primary {
-  color: #fff;
-  background: #1c1c1e;
-}
-
-.sheet-enter-active,
-.sheet-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.sheet-enter-active .sheet-card,
-.sheet-leave-active .sheet-card {
-  transition: transform 0.22s ease, opacity 0.22s ease;
-}
-
-.sheet-enter-from,
-.sheet-leave-to {
-  opacity: 0;
-}
-
-.sheet-enter-from .sheet-card,
-.sheet-leave-to .sheet-card {
-  opacity: 0;
-  transform: translateY(28px) scale(0.98);
-}
+/* Alert transition */
+.alert-enter-active { transition: opacity 0.25s ease; }
+.alert-leave-active { transition: opacity 0.18s ease; }
+.alert-enter-active .alert-card { transition: transform 0.40s var(--ease-spring-soft), opacity 0.22s ease; }
+.alert-leave-active .alert-card { transition: transform 0.15s ease, opacity 0.15s ease; }
+.alert-enter-from, .alert-leave-to { opacity: 0; }
+.alert-enter-from .alert-card { opacity: 0; transform: scale(0.85) translateY(12px); }
+.alert-leave-to .alert-card { opacity: 0; transform: scale(0.92); }
 </style>

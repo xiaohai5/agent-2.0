@@ -45,7 +45,7 @@ class DualAgentChatService:
         if memory_state is None and history:
             memory_state = await self._initialize_memory_from_history(history)
 
-        answer, updated_memory = await self.workflow.run(
+        answer, updated_memory, pois = await self.workflow.run(
             user_input=question,
             user_id=user_id,
             top_k=top_k,
@@ -58,6 +58,7 @@ class DualAgentChatService:
         return {
             "answer": answer,
             "history": self._build_history_from_memory(updated_memory),
+            "pois": pois,
             "status": "completed",
             "route": "chat",
             "model": SETTINGS.llm_model,
@@ -103,6 +104,7 @@ class DualAgentChatService:
                     "payload": {
                         "answer": answer,
                         "history": self._build_history_from_memory(final_memory) if final_memory else history,
+                        "pois": event.get("pois", []),
                         "status": event.get("status", "completed"),
                         "route": "chat",
                         "model": SETTINGS.llm_model,

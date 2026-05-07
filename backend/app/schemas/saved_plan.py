@@ -10,6 +10,8 @@ class PlanDayItem(BaseModel):
     time: str = ""
     endTime: str = ""
     type: str = "general"
+    placeName: str = ""
+    name: str = ""
     description: str = ""
     lng: Optional[float] = None
     lat: Optional[float] = None
@@ -52,6 +54,18 @@ class RouteMarker(BaseModel):
     lat: float
     name: str
     type: str  # "start" | "end" | "waypoint" | "start_end"
+    num: int = 0
+    color: str = ""
+
+
+class RouteSegment(BaseModel):
+    polyline: list[list[float]] = Field(default_factory=list)
+    color: str
+    label: str
+    from_name: str
+    to_name: str
+    label_lng: float
+    label_lat: float
 
 
 class RouteDayData(BaseModel):
@@ -60,6 +74,7 @@ class RouteDayData(BaseModel):
     color: str
     polyline: list[list[float]] = Field(default_factory=list)
     markers: list[RouteMarker] = Field(default_factory=list)
+    segments: list[RouteSegment] = Field(default_factory=list)
     chunked: bool = False
 
 

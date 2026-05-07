@@ -24,7 +24,14 @@
         :class="{ expanded: expandedId === plan.id }"
       >
         <!-- Tab header (always visible) -->
-        <button class="tab-trigger" @click="togglePlan(plan.id)">
+        <div
+          class="tab-trigger"
+          role="button"
+          tabindex="0"
+          @click="togglePlan(plan.id)"
+          @keydown.enter.prevent="togglePlan(plan.id)"
+          @keydown.space.prevent="togglePlan(plan.id)"
+        >
           <div class="tab-left">
             <div class="tab-icon-wrap" :style="{ background: iconBg(plan.id), color: iconColor(plan.id) }">
               <svg v-if="iconKey(plan.id) === 'map'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -62,6 +69,18 @@
             </div>
           </div>
           <div class="tab-right">
+            <button
+              class="route-btn route-btn-inline"
+              :class="{ active: isActiveRoutePlan(plan.id), loading: routeLoading === plan.id }"
+              :disabled="routeLoading === plan.id"
+              @click.stop="confirmRoute(plan)"
+            >
+              <svg v-if="routeLoading !== plan.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+              </svg>
+              <span v-else class="btn-spinner"></span>
+              <span>{{ routeLoading === plan.id ? '加载中' : isActiveRoutePlan(plan.id) ? '已显示' : '显示路线' }}</span>
+            </button>
             <button class="tab-delete" @click.stop="removePlan(plan.id)" aria-label="删除计划">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             </button>
@@ -69,7 +88,7 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
           </div>
-        </button>
+        </div>
 
         <!-- Expanded timeline -->
         <div v-if="expandedId === plan.id" class="tab-body">
@@ -111,20 +130,6 @@
             </template>
           </div>
 
-          <div class="plan-footer">
-            <button
-              class="route-btn"
-              :class="{ active: isActiveRoutePlan(plan.id), loading: routeLoading === plan.id }"
-              :disabled="routeLoading === plan.id"
-              @click.stop="confirmRoute(plan)"
-            >
-              <svg v-if="routeLoading !== plan.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="3 11 22 2 13 21 11 13 3 11"/>
-              </svg>
-              <span v-else class="btn-spinner"></span>
-              <span>{{ routeLoading === plan.id ? '加载中...' : isActiveRoutePlan(plan.id) ? '已显示路线' : '显示路线' }}</span>
-            </button>
-          </div>
         </div>
       </article>
 
@@ -256,13 +261,16 @@ async function confirmRoute(plan) {
 .plans-scroll {
   flex: 1;
   min-height: 0;
+  position: relative;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 12px;
+  padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.feed-pad { height: 8px; flex-shrink: 0; }
+.feed-pad { height: 22px; flex-shrink: 0; }
 
 /* ── Plan Tab ── */
 .plan-tab {
@@ -276,6 +284,11 @@ async function confirmRoute(plan) {
   transition: box-shadow 0.25s ease, border-color 0.25s ease;
 }
 .plan-tab.expanded {
+  position: absolute;
+  inset: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px)) 12px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
   border-color: rgba(126,200,227,0.35);
   box-shadow: 0 4px 20px rgba(126,200,227,0.12);
 }
@@ -295,6 +308,10 @@ async function confirmRoute(plan) {
   transition: background 0.15s ease;
 }
 .tab-trigger:active { background: rgba(126,200,227,0.05); }
+.tab-trigger:focus-visible {
+  outline: 2px solid rgba(74,127,191,0.45);
+  outline-offset: -2px;
+}
 
 .tab-left {
   display: flex;
@@ -364,21 +381,21 @@ async function confirmRoute(plan) {
 /* ── Tab body ── */
 .tab-body {
   padding: 0 16px 16px 16px;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   animation: expand-in 0.35s var(--ease-bounce) both;
 }
+.tab-body::-webkit-scrollbar { width: 4px; }
+.tab-body::-webkit-scrollbar-track { background: transparent; }
+.tab-body::-webkit-scrollbar-thumb { background: rgba(38, 53, 72, 0.14); border-radius: 4px; }
 
 @keyframes expand-in {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Plan footer / route button ── */
-.plan-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 0.5px solid var(--hairline);
 }
 
 .route-btn {
@@ -403,6 +420,14 @@ async function confirmRoute(plan) {
   box-shadow: none;
 }
 .route-btn.loading { opacity: 0.7; }
+.route-btn-inline {
+  min-width: 86px;
+  height: 30px;
+  justify-content: center;
+  padding: 6px 11px;
+  font-size: 12px;
+  white-space: nowrap;
+}
 .btn-spinner {
   width: 14px; height: 14px;
   border: 2px solid rgba(255,255,255,0.3);
@@ -519,7 +544,19 @@ async function confirmRoute(plan) {
 
 @media (max-width: 520px) {
   .plans-scroll { padding: 10px; gap: 8px; }
-  .tab-trigger { padding: 12px 14px; }
-  .tab-body { padding: 0 14px 14px 14px; }
+  .plan-tab.expanded {
+    inset: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px)) 10px;
+  }
+  .tab-trigger { padding: 12px 14px; align-items: flex-start; }
+  .tab-body {
+    padding: 0 14px 14px 14px;
+    max-height: none;
+  }
+  .route-btn-inline {
+    min-width: 34px;
+    width: 34px;
+    padding: 0;
+  }
+  .route-btn-inline span:not(.btn-spinner) { display: none; }
 }
 </style>

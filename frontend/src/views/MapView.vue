@@ -82,11 +82,6 @@ const dayOptions = computed(() => {
   return opts;
 });
 
-const DAY_COLORS = [
-  "#4A7FBF", "#FF9500", "#34C759", "#FF3B30",
-  "#AF52DE", "#007AFF", "#FF2D55", "#5AC8FA",
-];
-
 function loadScript(url) {
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${url}"]`)) return resolve();
@@ -189,81 +184,46 @@ function clearRoutePlanMarkers() {
   routePlanPolylines = [];
 }
 
-function createColoredMarker(lng, lat, name, color, dayLabel) {
-  const content = `<div style="
-    display:flex;align-items:center;gap:4px;
-  ">
-    <div style="
-      width:14px;height:14px;border-radius:50%;background:${color};
-      border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,0.25);
-      flex-shrink:0;
-    "></div>
-    <span style="font-size:11px;font-weight:600;color:${color};white-space:nowrap;">${dayLabel}</span>
-  </div>`;
-  const marker = new window.AMap.Marker({
+function createNumberedWaypointMarker(lng, lat, num, name, color, isEndpoint) {
+  const size = isEndpoint ? 36 : 32;
+  const fontSize = isEndpoint ? 16 : 15;
+  const zIdx = isEndpoint ? 5010 : 5000;
+  const safeName = name || `站点 ${num}`;
+
+  const marker = new window.AMap.Text({
+    text: String(num),
     position: [lng, lat],
-    title: name,
-    content,
-    offset: new window.AMap.Pixel(0, -7),
-    zIndex: 900,
+    title: `${num}. ${safeName}`,
+    anchor: "center",
+    style: {
+      width: `${size}px`,
+      height: `${size}px`,
+      padding: "0",
+      border: "4px solid #fff",
+      borderRadius: "50%",
+      backgroundColor: color,
+      color: "#fff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: `${fontSize}px`,
+      fontWeight: "800",
+      lineHeight: `${size}px`,
+      boxShadow: "0 4px 14px rgba(0,0,0,0.28)",
+      textAlign: "center",
+      whiteSpace: "nowrap",
+      userSelect: "none",
+    },
+    zIndex: zIdx,
   });
   marker.on("click", () => {
     new window.AMap.InfoWindow({
-      content: `<div style="font-size:13px;padding:2px 6px;"><strong>${name}</strong></div>`,
-      offset: new window.AMap.Pixel(0, -28),
+      content: `<div style="font-size:14px;padding:4px 10px;"><strong>${num}. ${safeName}</strong></div>`,
+      offset: new window.AMap.Pixel(0, -24),
     }).open(map, [lng, lat]);
   });
   return marker;
 }
-
-function createStartEndMarker(lng, lat, name, type) {
-  const isBoth = type === "both";
-  const isStart = type === "start";
-  const bgColor = "#FF9500";
-  const label = isBoth ? "始终" : isStart ? "起" : "终";
-  const text = isBoth ? "起终点" : isStart ? "起点" : "终点";
-  const content = `<div style="
-    display:flex;flex-direction:column;align-items:center;gap:1px;
-  ">
-    <div style="
-      width:24px;height:24px;border-radius:50%;background:${bgColor};
-      border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);
-      display:grid;place-items:center;
-      color:#fff;font-size:${isBoth ? '9px' : '12px'};font-weight:700;
-    ">${label}</div>
-    <span style="font-size:10px;font-weight:600;color:${bgColor};white-space:nowrap;">${text}</span>
-  </div>`;
-  const marker = new window.AMap.Marker({
-    position: [lng, lat],
-    title: `${text}：${name}`,
-    content,
-    offset: new window.AMap.Pixel(0, -16),
-    zIndex: 1000,
-  });
-  marker.on("click", () => {
-    new window.AMap.InfoWindow({
-      content: `<div style="font-size:13px;padding:2px 6px;"><strong>${text}：${name}</strong></div>`,
-      offset: new window.AMap.Pixel(0, -36),
-    }).open(map, [lng, lat]);
-  });
-  return marker;
-}
-
-function drawRoutePolyline(path, color) {
-  const polyline = new window.AMap.Polyline({
-    path,
-    strokeColor: color,
-    strokeWeight: 6,
-    strokeOpacity: 0.95,
-    lineJoin: "round",
-    lineCap: "round",
-    zIndex: 999,
-  });
-  polyline.setMap(map);
-  routePlanPolylines.push(polyline);
-  return polyline;
-}
-
 
 function renderRoute(plan) {
   clearRoutePlanMarkers();
@@ -283,37 +243,52 @@ function renderRoute(plan) {
   if (visibleDays.length === 0) return;
 
   let totalMarkers = 0;
-  let totalPolylines = 0;
+  let totalSegments = 0;
 
   for (const day of visibleDays) {
-    // Draw polyline
+    const isSingle = day.markers && day.markers.length === 1;
+
+    // Always draw the full day polyline as the base layer
     if (day.polyline && day.polyline.length > 0) {
       const polyline = new window.AMap.Polyline({
         path: day.polyline,
         strokeColor: day.color,
         strokeWeight: 6,
-        strokeOpacity: 0.9,
+        strokeOpacity: 0.85,
         lineJoin: "round",
         lineCap: "round",
-        zIndex: 999,
+        zIndex: 997,
       });
       polyline.setMap(map);
       routePlanPolylines.push(polyline);
-      totalPolylines++;
     }
 
-    // Draw markers
-    for (const m of day.markers) {
-      let marker;
-      if (m.type === "start_end") {
-        marker = createStartEndMarker(m.lng, m.lat, m.name, "both");
-      } else if (m.type === "start") {
-        marker = createStartEndMarker(m.lng, m.lat, m.name, "start");
-      } else if (m.type === "end") {
-        marker = createStartEndMarker(m.lng, m.lat, m.name, "end");
-      } else {
-        marker = createColoredMarker(m.lng, m.lat, m.name, day.color, `D${day.day}`);
+    // Overlay per-segment colored polylines
+    if (day.segments && day.segments.length > 0) {
+      for (const seg of day.segments) {
+        if (seg.polyline && seg.polyline.length > 0) {
+          const polyline = new window.AMap.Polyline({
+            path: seg.polyline,
+            strokeColor: seg.color,
+            strokeWeight: 5,
+            strokeOpacity: 0.92,
+            lineJoin: "round",
+            lineCap: "round",
+            zIndex: 998,
+          });
+          polyline.setMap(map);
+          routePlanPolylines.push(polyline);
+        }
+        totalSegments++;
       }
+    }
+
+    // Draw numbered waypoint markers
+    for (const m of day.markers) {
+      const isEndpoint = m.type === "start" || m.type === "end" || m.type === "start_end" || isSingle;
+      const marker = createNumberedWaypointMarker(
+        m.lng, m.lat, m.num, m.name, m.color, isEndpoint,
+      );
       marker.setMap(map);
       routePlanMarkers.push(marker);
       totalMarkers++;
@@ -324,7 +299,7 @@ function renderRoute(plan) {
     map.setFitView(routePlanMarkers, true, [60, 60, 60, 60]);
   }
 
-  showStatus(`${allDays.length} 天 · ${totalMarkers} 个地点 · ${totalPolylines} 条路线`);
+  showStatus(`${allDays.length} 天 · ${totalMarkers} 个地点 · ${totalSegments} 段路线`);
 }
 
 function switchDay(day) {

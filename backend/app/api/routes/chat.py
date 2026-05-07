@@ -35,6 +35,7 @@ async def chat_completion(
         model=result.get("model"),
         tool_calls=result.get("tool_calls"),
         answer_source=result.get("answer_source"),
+        pois=result.get("pois", []),
     )
     return ApiResponse(message="对话完成", data=data)
 

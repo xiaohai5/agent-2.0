@@ -386,8 +386,6 @@ async function deleteDoc(name) {
   }
 }
 
-function vectorize() {}
-
 function normalizeHistory(history) {
   return (Array.isArray(history) ? history : [])
     .map((item) => createChatMessage(item?.role, item?.content))
@@ -541,173 +539,211 @@ function clearChat() {
 
 // ── Travel Plan ──
 
-const TRANSPORT_KEYS = ["地铁", "公交", "火车", "高铁", "动车", "飞机", "航班", "打车", "出租", "网约车", "步行", "骑行", "开车", "自驾", "大巴", "客运", "轮渡", "船", "磁悬浮", "机场大巴", "摆渡车", "班车"];
-const DINING_KEYS = ["餐厅", "饭店", "美食", "小吃", "食堂", "饭馆", "火锅", "烧烤", "海鲜", "面馆", "快餐", "咖啡", "奶茶", "早餐", "午餐", "晚餐", "吃饭", "用餐", "就餐", "品尝", "美食街", "夜市", "大排档", "自助餐"];
-const HOTEL_KEYS = ["酒店", "宾馆", "旅馆", "民宿", "客栈", "入住", "住宿", "青旅", "度假村", "公寓", "下榻"];
-const ATTRACTION_KEYS = ["景点", "公园", "广场", "博物馆", "长城", "故宫", "寺庙", "塔", "湖", "山", "游览", "参观", "观光", "拍照", "打卡", "逛街", "购物", "老街", "胡同", "园林", "遗址", "演出", "表演"];
+const PLAN_TYPE_KEYWORDS = {
+  hotel: ["酒店", "宾馆", "旅馆", "民宿", "客栈", "入住", "住宿"],
+  transport: ["地铁", "公交", "高铁", "火车", "航班", "机场", "车站", "打车", "步行", "骑行", "自驾"],
+  dining: ["餐厅", "饭店", "美食", "小吃", "早餐", "午餐", "晚餐", "咖啡", "茶", "夜市"],
+  attraction: ["景点", "公园", "广场", "博物馆", "故宫", "长城", "寺", "塔", "湖", "山", "游览", "参观", "打卡", "街", "园"],
+};
 
 function detectItemType(text) {
-  const t = text || "";
-  if (HOTEL_KEYS.some((k) => t.includes(k))) return "hotel";
-  if (TRANSPORT_KEYS.some((k) => t.includes(k))) return "transport";
-  if (DINING_KEYS.some((k) => t.includes(k))) return "dining";
-  if (ATTRACTION_KEYS.some((k) => t.includes(k))) return "attraction";
+  const value = String(text || "");
+  for (const [type, keys] of Object.entries(PLAN_TYPE_KEYWORDS)) {
+    if (keys.some((key) => value.includes(key))) return type;
+  }
   return "general";
 }
 
-function stripMarkdown(line) {
-  return line
-    .replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}\u{200D}\u{20E3}\u{2702}-\u{27B0}\u{2B50}\u{2934}-\u{2935}\u{25AA}-\u{25FE}\u{2B05}-\u{2B07}\u{2B1B}-\u{2B1C}\u{3030}\u{303D}\u{3297}\u{3299}]\s*/u, "")
-    .replace(/^#{1,4}\s*/, "")
-    .replace(/^[-*•]\s*/, "")
-    .replace(/^\d+[.、]\s*/, "")
-    .replace(/^\*\*/, "")
-    .replace(/\*\*$/, "")
-    .trim();
-}
-
 function parseTravelPlanFromText(rawText) {
-  const text = String(rawText || "");
-  const lines = text.split(/\r?\n/);
-
+  const text = normalizeText(rawText, "");
+  const lines = text.split(/\r?\n/).map((line) => stripPlanMarkdown(line)).filter(Boolean);
   const days = [];
+  const overviewLines = [];
   let currentDay = null;
-  let overviewLines = [];
-  let inOverview = true;
-
-  const dayHeaderRe = /^第\s*([一二三四五六七八九十\d]+)\s*天\s*(?:[：:]\s*(.*))?/;
-  const dayHeaderRe2 = /^Day\s*(\d+)\s*[：:]\s*(.*)/i;
-  const timeRe = /^(\d{1,2}:\d{2})(?:\s*[-–—]\s*(\d{1,2}:\d{2}))?\s*(.*)/;
-  const roughTimeRe = /^(早晨|上午|中午|下午|傍晚|晚上|夜间|半夜|凌晨)\s*[：:]?\s*(.*)/;
-const activityRe = /^(午餐建议|晚餐建议|早餐建议|住宿|交通方式|购物推荐|娱乐推荐|夜宵建议)\s*[：:]?\s*(.*)/;
+  let beforeFirstDay = true;
 
   function flushDay() {
     if (!currentDay) return;
-    if (currentDay.items.length === 0) {
-      const note = currentDay.notes.join(" ").trim();
-      if (note) {
-        currentDay.items.push({ time: "", type: "general", description: note });
-      }
+    if (currentDay.items.length) {
+      days.push({
+        day: currentDay.day,
+        title: currentDay.title,
+        items: currentDay.items,
+      });
     }
-    days.push(currentDay);
     currentDay = null;
   }
 
-  function startDay(dayNum, title) {
+  function startDay(dayNum, title = "") {
     flushDay();
-    currentDay = { day: dayNum, title: title || `第${dayNum}天`, items: [], notes: [] };
+    currentDay = {
+      day: dayNum,
+      title: title || `第${dayNum}天`,
+      items: [],
+    };
+    beforeFirstDay = false;
   }
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) continue;
+  for (const line of lines) {
+    if (isPlanUtilityLine(line)) continue;
 
-    const cleanLine = stripMarkdown(line);
-
-    // Skip header/footer sections
-    if (/^(?:#{1,4}\s*)?(?:行程总览|推荐车次|出行提醒|温馨提示|费用预算|行程预算|注意事项|小贴士|旅行小贴士)/.test(line) || /^(?:#{1,4}\s*)?(?:行程总览|推荐车次|出行提醒|温馨提示|费用预算|行程预算|注意事项|小贴士|旅行小贴士)/.test(cleanLine)) {
-      const isOverview = /行程总览/.test(cleanLine) || /推荐车次/.test(cleanLine);
-      inOverview = isOverview;
-      // 出行提醒之后的内容不再加入行程
-      if (/出行提醒|温馨提示|注意事项|小贴士|旅行小贴士/.test(cleanLine)) {
-        inOverview = true;
-        continue;
-      }
-      if (!isOverview) continue;
-      overviewLines.push(cleanLine);
+    const dayHeader = parseDayHeader(line);
+    if (dayHeader) {
+      startDay(dayHeader.day, dayHeader.title);
       continue;
     }
 
-    const dayMatch = cleanLine.match(dayHeaderRe) || cleanLine.match(dayHeaderRe2);
-    if (dayMatch) {
-      inOverview = false;
-      const dayNum = parseInt(dayMatch[1]) || parseChineseNumber(dayMatch[1]) || (days.length + 1);
-      const title = dayMatch[2] || `第${dayNum}天`;
-      startDay(dayNum, title);
+    if (beforeFirstDay) {
+      overviewLines.push(line);
       continue;
     }
 
-    if (inOverview) {
-      overviewLines.push(cleanLine);
+    if (!currentDay) startDay(days.length + 1);
+
+    const item = parsePlanItem(line);
+    if (item) {
+      currentDay.items.push(item);
       continue;
     }
 
-    if (!currentDay) {
-      startDay(days.length + 1, `第${days.length + 1}天`);
+    const last = currentDay.items[currentDay.items.length - 1];
+    if (last && shouldAppendToPrevious(line)) {
+      last.description = `${last.description} ${line}`.trim();
+      if (!last.placeName) last.placeName = extractPlaceName(last.description, last.type);
+      if (!last.name) last.name = last.placeName;
     }
-
-    const timeMatch = cleanLine.match(timeRe);
-    if (timeMatch) {
-      const time = timeMatch[1];
-      const endTime = timeMatch[2] || "";
-      const desc = (timeMatch[3] || "").trim().replace(/^[：:]\s*/, "");
-      const type = detectItemType(desc);
-      currentDay.items.push({ time, endTime, type, description: desc });
-      continue;
-    }
-
-    const roughMatch = cleanLine.match(roughTimeRe);
-    if (roughMatch) {
-      const time = roughMatch[1];
-      const desc = (roughMatch[2] || "").trim().replace(/^[：:]\s*/, "");
-      const type = detectItemType(desc);
-      currentDay.items.push({ time, endTime: "", type, description: desc });
-      continue;
-    }
-
-    const actMatch = cleanLine.match(activityRe);
-    if (actMatch) {
-      const time = actMatch[1];
-      const desc = (actMatch[2] || "").trim().replace(/^[：:]\s*/, "");
-      const type = detectItemType(time + desc);
-      currentDay.items.push({ time, endTime: "", type, description: desc });
-      continue;
-    }
-
-    // Generic Label：Value pattern (e.g., "景点间交通：地铁2号线")
-    const genericMatch = cleanLine.match(/^(.{2,12}?)[：:]\s*(.+)$/);
-    if (genericMatch && genericMatch[2].length >= 2) {
-      const label = genericMatch[1];
-      const value = genericMatch[2];
-      const type = detectItemType(label + value);
-      currentDay.items.push({ time: label, endTime: "", type, description: value });
-      continue;
-    }
-
-    currentDay.notes.push(cleanLine);
   }
 
   flushDay();
 
-  let title = "出行计划";
-  for (const line of overviewLines) {
-    const m = line.match(/^(.{1,30})(?:：|:)\s*(.+)/);
-    if (m && m[1].length <= 12) {
-      title = m[1].replace(/^[🍜🏨🎯🚗✈️📍🗺️]\s*/, "");
-      break;
-    }
-  }
-  if (title === "出行计划" && overviewLines.length > 0) {
-    title = overviewLines[0].replace(/^[🍜🏨🎯🚗✈️📍🗺️]\s*/, "").slice(0, 40);
-  }
+  return {
+    title: extractPlanTitle(overviewLines, text),
+    days,
+    overview: overviewLines.join("\n"),
+  };
+}
 
-  return { title, days, overview: overviewLines.join("\n") };
+function stripPlanMarkdown(value) {
+  return String(value || "")
+    .replace(/^[\s>*-]+/, "")
+    .replace(/^[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*/u, "")
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/^\d+[.、)]\s*/, "")
+    .replace(/\*\*/g, "")
+    .trim();
 }
 
 function parseChineseNumber(str) {
-  const map = { "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10 };
-  if (str === "十") return 10;
-  if (str.length === 2 && str[0] === "十") return 10 + (map[str[1]] || 0);
-  if (str.length === 2 && str[1] === "十") return (map[str[0]] || 1) * 10;
-  return map[str] || null;
+  const value = String(str || "").trim();
+  if (/^\d+$/.test(value)) return Number.parseInt(value, 10);
+  const map = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  if (value === "十") return 10;
+  if (value.length === 1) return map[value] || null;
+  if (value.startsWith("十")) return 10 + (map[value[1]] || 0);
+  if (value.endsWith("十")) return (map[value[0]] || 1) * 10;
+  const match = value.match(/^([一二两三四五六七八九])十([一二三四五六七八九])$/);
+  if (match) return (map[match[1]] || 1) * 10 + (map[match[2]] || 0);
+  return null;
 }
+
+function parseDayHeader(line) {
+  const match = line.match(/^(?:第\s*)?([一二三四五六七八九十\d]+)\s*(?:天|日)(?:\s*[：:.-]\s*(.*))?$/i)
+    || line.match(/^Day\s*([一二三四五六七八九十\d]+)(?:\s*[：:.-]\s*(.*))?$/i);
+  if (!match) return null;
+  const day = Number.parseInt(match[1], 10) || parseChineseNumber(match[1]) || 1;
+  return { day, title: (match[2] || "").trim() || `第${day}天` };
+}
+
+function parsePlanItem(line) {
+  const timeMatch = line.match(/^(\d{1,2}:\d{2})(?:\s*[-–—~至到]\s*(\d{1,2}:\d{2}))?\s*(.*)$/);
+  if (timeMatch) {
+    return buildPlanItem(timeMatch[1], timeMatch[2] || "", timeMatch[3] || line);
+  }
+
+  const periodMatch = line.match(/^(清晨|早晨|上午|中午|下午|傍晚|晚上|夜间|凌晨|早餐|午餐|晚餐|住宿|交通|购物|娱乐|返程|出发)\s*[：:]?\s*(.+)$/);
+  if (periodMatch) {
+    return buildPlanItem(periodMatch[1], "", periodMatch[2]);
+  }
+
+  const labelMatch = line.match(/^(.{2,12}?)(?:建议|安排|推荐|方式)?\s*[：:]\s*(.+)$/);
+  if (labelMatch) {
+    return buildPlanItem(labelMatch[1], "", labelMatch[2], labelMatch[1]);
+  }
+
+  return null;
+}
+
+function buildPlanItem(time, endTime, description, label = "") {
+  const cleanDescription = String(description || "").replace(/^[：:\s-]+/, "").trim();
+  if (!cleanDescription) return null;
+  const type = detectItemType(`${label} ${cleanDescription}`);
+  const placeName = extractPlaceName(cleanDescription, type);
+  return {
+    time,
+    endTime,
+    type,
+    placeName,
+    name: placeName,
+    description: cleanDescription,
+  };
+}
+
+function extractPlaceName(description, type = "general") {
+  let text = String(description || "")
+    .replace(/\*\*/g, "")
+    .replace(/[（(].*?[）)]/g, "")
+    .trim();
+
+  const quoted = text.match(/[《“"]([^》”"]{2,30})[》”"]/);
+  if (quoted) return quoted[1].trim();
+
+  const destination = text.match(/(?:前往|到达|抵达|游览|参观|打卡|入住|去往|步行至|乘车至|打车至|地铁至|换乘至)([^，。；;、,.]{2,30})/);
+  if (destination) return cleanupPlaceName(destination[1]);
+
+  const labelValue = text.match(/(?:景点|地点|餐厅|酒店|住宿|午餐|晚餐|早餐|目的地|终点)\s*[：:]\s*([^，。；;、,.]{2,30})/);
+  if (labelValue) return cleanupPlaceName(labelValue[1]);
+
+  text = text.split(/[，。；;,.]/)[0].trim();
+  text = text.replace(/^(游览|参观|打卡|逛|看|去|到|入住|品尝|体验|建议|推荐)\s*/, "");
+  text = cleanupPlaceName(text);
+
+  if (type === "transport" && /(?:地铁|公交|打车|步行|骑行|自驾|约\d+)/.test(text) && !/(站|机场|码头|港|广场)$/.test(text)) {
+    return "";
+  }
+  return text.length >= 2 && text.length <= 30 ? text : "";
+}
+
+function cleanupPlaceName(value) {
+  return String(value || "")
+    .replace(/^(去|到|至)\s*/, "")
+    .replace(/(?:用餐|午餐|晚餐|早餐|游览|参观|打卡|拍照|住宿|入住|集合|出发).*$/, "")
+    .replace(/(?:约|大约)?\d+(?:\.\d+)?\s*(?:小时|分钟|公里|km).*$/i, "")
+    .trim(" -—:：，。；;、");
+}
+
+function isPlanUtilityLine(line) {
+  return /^(行程总览|推荐车次|出行提醒|温馨提示|费用预算|行程预算|注意事项|小贴士|旅行小贴士|备选|说明)/.test(line);
+}
+
+function shouldAppendToPrevious(line) {
+  return /^(说明|备注|亮点|建议|预计|门票|预算|交通提示|开放时间)/.test(line);
+}
+
+function extractPlanTitle(overviewLines, fullText) {
+  const titleLine = overviewLines.find((line) => /(?:目的地|城市|标题|行程)/.test(line)) || overviewLines[0] || "";
+  const value = titleLine.split(/[：:]/).pop()?.trim();
+  if (value && value.length <= 40) return value;
+  const city = fullText.match(/(?:北京|上海|广州|深圳|杭州|南京|成都|重庆|西安|苏州|天津|长沙|武汉|厦门|青岛|三亚|桂林|大理|丽江)/)?.[0];
+  return city ? `${city}出行计划` : "出行计划";
+}
+
 function isTravelPlanMessage(content) {
   const text = normalizeText(content, "");
   if (!text || text.length < 30) return false;
-  const hasDayStructure = /第\s*[一二三四五六七八九十\d]+\s*天/.test(text) || /Day\s*\d+/i.test(text);
-  const hasTripKeywords = /行程|旅行|旅游|出游|攻略|路线/.test(text);
-  const hasTimeSchedule = /\d{1,2}:\d{2}/.test(text);
-  return hasDayStructure || (hasTripKeywords && hasTimeSchedule);
+  const hasDayStructure = /(?:第\s*)?[一二三四五六七八九十\d]+\s*(?:天|日)|Day\s*\d+/i.test(text);
+  const hasTripKeywords = /行程|旅行|旅游|出游|攻略|路线|景点|酒店|交通/.test(text);
+  const hasSchedule = /\d{1,2}:\d{2}|上午|下午|晚上|午餐|晚餐|住宿/.test(text);
+  return hasDayStructure || (hasTripKeywords && hasSchedule);
 }
 
 function setActiveRoute(plan) {
@@ -852,7 +888,6 @@ const instance = {
   fetchDocs,
   uploadDoc,
   deleteDoc,
-  vectorize,
   sendChat,
   submitFeedback,
   clearChat,

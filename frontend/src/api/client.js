@@ -5,10 +5,6 @@ function joinUrl(baseUrl, path) {
   return `${baseUrl.replace(/\/+$/, "")}${path}`;
 }
 
-function debug(message) {
-  window.__agentDebug?.(message);
-}
-
 function describeError(error) {
   const parts = [
     `name=${error?.name || typeof error}`,
@@ -38,8 +34,6 @@ function describeError(error) {
 const isNative = Capacitor.isNativePlatform();
 
 function handleNativeResponse(result, url) {
-  debug(`API response: ${result.status} url=${url}`);
-
   if (result.status < 200 || result.status >= 300) {
     const payload = result.data;
     const message =
@@ -103,8 +97,6 @@ export function createApiClient(getBaseUrl, getToken) {
       json: options.json !== false,
       extraHeaders: options.headers || {},
     });
-    debug(`API request: ${options.method || "GET"} ${url}`);
-
     // Use CapacitorHttp on native to bypass WebView CORS restrictions
     if (isNative) {
       const nativeOptions = {
@@ -126,7 +118,6 @@ export function createApiClient(getBaseUrl, getToken) {
       const response = await fetch(url, { ...options, headers });
       return webParseResponse(response);
     } catch (error) {
-      debug(`API error: ${describeError(error)}`);
       if (error instanceof TypeError) {
         throw new Error(`Network request failed. url=${url}; ${describeError(error)}`);
       }
@@ -136,8 +127,6 @@ export function createApiClient(getBaseUrl, getToken) {
 
   async function upload(path, formData) {
     const url = joinUrl(getBaseUrl(), path);
-    debug(`API upload: POST ${url}`);
-
     if (isNative) {
       const result = await CapacitorHttp.request({
         method: "POST",
@@ -159,7 +148,6 @@ export function createApiClient(getBaseUrl, getToken) {
       });
       return webParseResponse(response);
     } catch (error) {
-      debug(`API upload error: ${describeError(error)}`);
       if (error instanceof TypeError) {
         throw new Error(`Network upload failed. url=${url}; ${describeError(error)}`);
       }
@@ -169,8 +157,6 @@ export function createApiClient(getBaseUrl, getToken) {
 
   async function stream(path, payload, { onStatus, onChunk, onDone }) {
     const url = joinUrl(getBaseUrl(), path);
-    debug(`API stream: POST ${url}`);
-
     if (isNative) {
       // CapacitorHttp doesn't support ReadableStream, so we fetch the full
       // response and then replay the SSE events.
@@ -228,7 +214,6 @@ export function createApiClient(getBaseUrl, getToken) {
         body: JSON.stringify(payload),
       });
     } catch (error) {
-      debug(`API stream error: ${describeError(error)}`);
       if (error instanceof TypeError) {
         throw new Error(`Network stream failed. url=${url}; ${describeError(error)}`);
       }

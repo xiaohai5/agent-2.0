@@ -17,13 +17,14 @@
           <IosButton variant="secondary" @click="router.push('/register')">注册</IosButton>
         </div>
 
-        <div class="ios-status">{{ app.authStatus.value }}</div>
+        <p v-if="loginError" class="form-error">{{ loginError }}</p>
       </form>
     </PagePanel>
   </section>
 </template>
 
 <script setup>
+import { ref } from "vue";
 import { useRouter } from "vue-router";
 import IosButton from "../components/IosButton.vue";
 import IosField from "../components/IosField.vue";
@@ -32,11 +33,15 @@ import { useAssistantApp } from "../composables/useAssistantApp";
 
 const app = useAssistantApp();
 const router = useRouter();
+const loginError = ref("");
 
 async function submitLogin() {
+  loginError.value = "";
   await app.doLogin();
   if (app.state.token) {
     router.push({ name: "chat" });
+  } else {
+    loginError.value = app.authStatus.value;
   }
 }
 </script>
@@ -46,13 +51,12 @@ async function submitLogin() {
   display: grid;
   align-items: center;
 }
-
-.form-stack {
-  display: grid;
-  gap: 14px;
-}
-
-.grow {
-  flex: 1;
+.form-stack { display: grid; gap: 15px; }
+.grow { flex: 1; }
+.form-error {
+  margin: 0;
+  color: var(--red);
+  font-size: 13px;
+  text-align: center;
 }
 </style>

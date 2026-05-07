@@ -266,9 +266,19 @@ class DialogAgent:
                 }
 
                 # 提取其他可能有用的字段
-                for field in ("type", "typecode", "rating", "price", "tags", "description"):
+                for field in ("type", "typecode", "rating", "price", "tags", "description", "location"):
                     if field in poi:
                         poi_data[field] = poi[field]
+
+                # 解析 location 坐标为 lng/lat
+                location = str(poi.get("location", "")).strip()
+                if location and "," in location:
+                    parts = location.split(",")
+                    try:
+                        poi_data["lng"] = float(parts[0].strip())
+                        poi_data["lat"] = float(parts[1].strip())
+                    except (ValueError, TypeError):
+                        pass
 
                 poi_list.append(poi_data)
                 poi_id_counter += 1
@@ -661,15 +671,16 @@ class DialogAgent:
             "   亮点：...\n\n"
             "3. 每一天的区块结构（保持块状，不要打散成平铺字段）：\n"
             "   📍 第X天\n"
-            "   🕒 上午：...\n"
+            "   🏨 入住酒店/住宿：具体酒店名称，作为当天起点；不要写泛泛的“景区附近酒店”\n"
+            "   🕒 上午：从XX酒店出发，前往...\n"
             "   🚇 上午景点间交通：从 A 到 B，写清推荐交通方式、预计耗时、换乘或步行提示\n"
-            "   🍜 午餐建议：...\n"
+            "   🍜 午餐：具体餐厅名称，或具体小吃街/美食街名称；不要写“附近餐厅”“附近小吃街”\n"
             "   🚇 午餐后交通：从午餐点或上午最后一个景点到下午景点，写清推荐交通方式和预计耗时\n"
             "   🕒 下午：...\n"
             "   🚇 下午景点间交通：从 C 到 D，写清推荐交通方式、预计耗时、换乘或步行提示\n"
             "   🌙 晚间建议：...\n"
-            "   🚇 晚间返回交通：从晚间活动点到住宿区域或交通枢纽，写清推荐交通方式和预计耗时\n"
-            "   🏨 住宿建议：...\n"
+            "   🚇 晚间返回交通：从晚间活动点返回当天酒店，写清具体酒店名、交通方式和预计耗时，形成闭环\n"
+            "   🏨 住宿：具体酒店名称，作为下一天起点；不要写“推荐...”\n"
             "   ⚠️ 小贴士：...\n"
             "   图片：![景点名称](图片URL)（如果有）\n\n"
             "4. 景点之间交通必须具体：\n"
@@ -677,7 +688,16 @@ class DialogAgent:
             "   - 优先给出地铁、公交、步行、打车、自驾中的明确方式，不要只写“前往下一站”\n"
             "   - 每段交通尽量包含起点、终点、预计耗时、换乘/步行提示\n"
             "   - 如果没有实时路线数据，可以给出保守估算并说明“约”耗时\n\n"
-            "5. 推荐车次区块（如果有）：\n"
+            "5. 酒店、餐饮和路线闭环硬性规则：\n"
+            "   - 酒店必须是具体可搜索的酒店名，不能是“市中心酒店”“快捷酒店”“景区附近住宿”等泛称\n"
+            "   - 餐厅必须是具体餐厅名；小吃街/美食街必须是具体地点名，不能只写“附近小吃街”\n"
+            "   - 如果工具返回 POI name，必须逐字复制完整名称，例如“如家酒店(北京王府井店)”不能改成“如家酒店”\n"
+            "   - 完整行程里不要写“推荐某酒店/建议某餐厅”，要直接安排：🏨 住宿：XX酒店；🍜 午餐：XX餐厅\n"
+            "   - 每一天路线硬性从酒店开始，并且一定返回同一家当天酒店，形成当天闭环\n"
+            "   - 全程最后一天必须回到第1天起点酒店，形成总闭环；除非用户明确要求异地结束\n"
+            "   - 安排行程顺序时必须优先路程最优：少绕路、少折返、按地理顺路顺序串联景点/餐厅/晚间活动\n"
+            "   - 禁止把距离很远的点硬塞在同一天导致绕圈；必要时删减或替换为顺路点\n\n"
+            "6. 推荐车次区块（如果有）：\n"
             "   🚄 推荐车次\n"
             "   车次概览：...\n"
             "   推荐车次：...\n\n"
@@ -697,17 +717,19 @@ class DialogAgent:
             "   票价：...\n"
             "   状态：...\n"
             "   推荐理由：...\n\n"
-            "6. 出行提醒区块：\n"
+            "7. 出行提醒区块：\n"
             "   ⚠️ 出行提醒\n"
             "   💰 预算提醒：...\n"
             "   ⚠️ 预约提醒：...\n"
             "   🚇 交通提醒：...\n"
             "   ✅ 推荐建议：...\n\n"
-            "7. 禁止行为：\n"
+            "8. 禁止行为：\n"
             "   - 禁止将字段打散成平铺输出（如只输出地址、推荐原因、上午、下午等零散字段）\n"
             "   - 禁止省略📍第X天的明确分段标记\n"
             "   - 禁止省略🗺️行程总览区块\n"
             "   - 禁止在多景点日省略景点之间的交通方式和预计耗时\n"
+            "   - 禁止输出没有具体名称的酒店、餐厅、小吃街、美食街\n"
+            "   - 禁止生成不回酒店的开放路线，除非用户明确要求单程路线\n"
             "   - 禁止将车次信息混入正文，必须独立成🚄推荐车次区块\n"
             "   - 禁止使用 Markdown 符号（*, **, #, ##, -, |, >）\n"
             "   - 必须保持块状结构，读起来像完整的 app 行程方案，不是信息碎片\n\n"
@@ -931,8 +953,12 @@ class DialogAgent:
         memory_context: dict[str, Any],
         user_id: int | None = None,
         top_k: int | None = None,
-    ) -> str:
-        """生成回复 - 基于当前输入和记忆上下文，支持工具调用"""
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """生成回复 - 基于当前输入和记忆上下文，支持工具调用
+
+        Returns:
+            (final_content, poi_data) - 回复文本和POI数据列表
+        """
         agent = await self._get_agent(user_id=user_id, top_k=top_k)
         system_prompt = self._build_system_prompt(memory_context, current_input)
         messages = [
@@ -1003,4 +1029,10 @@ class DialogAgent:
 
         final_content = self._ensure_required_expressions(final_content)
 
-        return final_content
+        # 构建前端可用的 POI 列表（含坐标）
+        frontend_pois = [
+            {k: v for k, v in p.items() if k in ("poi_id", "name", "address", "lng", "lat", "location", "photos", "type", "rating")}
+            for p in poi_data
+        ]
+
+        return final_content, frontend_pois

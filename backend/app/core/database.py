@@ -39,6 +39,7 @@ async def init_db() -> None:
     # 导入所有模型以确保它们被注册
     from backend.app.models.feedback import MessageFeedback
     from backend.app.models.graphrag import GraphEntity, GraphRelationship, GraphSemanticChunk
+    from backend.app.models.saved_plan import SavedPlan
     from backend.app.models.user import User
     from backend.app.models.user_memory import UserMemory
     from backend.app.models.vector_store import UploadResponse, DocumentItem
